@@ -1,3 +1,3 @@
 # Terraform Provider Linuxbox
 
-Ongoind development
+Ongoing development
