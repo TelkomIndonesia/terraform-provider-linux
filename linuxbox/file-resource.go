@@ -93,7 +93,9 @@ func (frh fileResourceHandler) Create(rd *schema.ResourceData, i interface{}) (e
 		return
 	}
 	rd.SetId(id.String())
-	rd.SetConnInfo(l.connInfo)
+	if len(rd.ConnInfo()) == 0 {
+		rd.SetConnInfo(l.connInfo)
+	}
 
 	return frh.Read(rd, i)
 }
