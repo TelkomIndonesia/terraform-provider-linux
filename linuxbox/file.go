@@ -26,7 +26,7 @@ type File struct {
 	group         uint16
 	mode          string
 	ignoreContent bool
-	replace       bool
+	overwrite     bool
 	recyclePath   string
 }
 
@@ -41,11 +41,12 @@ func newFileFromResourceData(rd *schema.ResourceData) (f *File) {
 		group:         cast.ToUint16(rd.Get(attrFileGroup)),
 		mode:          cast.ToString(rd.Get(attrFileMode)),
 		ignoreContent: cast.ToBool(rd.Get(attrFileIgnoreContent)),
-		replace:       cast.ToBool(rd.Get(attrFileReplace)),
+		overwrite:     cast.ToBool(rd.Get(attrFileOverwrite)),
 		recyclePath:   cast.ToString(rd.Get(attrFileRecyclePath)),
 	}
 	return
 }
+
 func newDiffedFileFromResourceData(rd *schema.ResourceData) (old, new *File) {
 	if rd == nil {
 		return
@@ -70,8 +71,8 @@ func newDiffedFileFromResourceData(rd *schema.ResourceData) (old, new *File) {
 	o, n = rd.GetChange(attrFileIgnoreContent)
 	old.ignoreContent, new.ignoreContent = cast.ToBool(o), cast.ToBool(n)
 
-	o, n = rd.GetChange(attrFileReplace)
-	old.replace, new.replace = cast.ToBool(o), cast.ToBool(n)
+	o, n = rd.GetChange(attrFileOverwrite)
+	old.overwrite, new.overwrite = cast.ToBool(o), cast.ToBool(n)
 
 	o, n = rd.GetChange(attrFileRecyclePath)
 	old.recyclePath, new.recyclePath = cast.ToString(o), cast.ToString(n)
@@ -87,9 +88,6 @@ func (f *File) setResourceData(rd *schema.ResourceData) (err error) {
 	if err = rd.Set(attrFilePath, f.path); err != nil {
 		return
 	}
-	if err = rd.Set(attrFileContent, f.content); err != nil {
-		return
-	}
 	if err = rd.Set(attrFileOwner, f.owner); err != nil {
 		return
 	}
@@ -102,16 +100,23 @@ func (f *File) setResourceData(rd *schema.ResourceData) (err error) {
 	if err = rd.Set(attrFileIgnoreContent, f.ignoreContent); err != nil {
 		return
 	}
-	if err = rd.Set(attrFileReplace, f.replace); err != nil {
+	if err = rd.Set(attrFileOverwrite, f.overwrite); err != nil {
 		return
 	}
 	if err = rd.Set(attrFileRecyclePath, f.recyclePath); err != nil {
 		return
 	}
+
+	if f.ignoreContent {
+		return
+	}
+	if err = rd.Set(attrFileContent, f.content); err != nil {
+		return
+	}
 	return
 }
 
-func (p LinuxBox) ReadFile(ctx context.Context, path string) (f *File, err error) {
+func (p LinuxBox) ReadFile(ctx context.Context, path string, ignoreContent bool) (f *File, err error) {
 	stdout := new(bytes.Buffer)
 	pathSafe := shellescape.Quote(path)
 
@@ -150,6 +155,10 @@ func (p LinuxBox) ReadFile(ctx context.Context, path string) (f *File, err error
 		f = &File{owner: uint16(owner), group: uint16(group), mode: parts[2], path: path}
 	}
 
+	if f.ignoreContent = ignoreContent; f.ignoreContent {
+		return
+	}
+
 	{
 		stdout.Reset()
 		cmd := remote.Cmd{
@@ -174,9 +183,12 @@ func (p LinuxBox) CreateFile(ctx context.Context, f *File) (err error) {
 	}
 	path := shellescape.Quote(f.path)
 
-	if !f.replace {
-		_, err := p.ReadFile(ctx, f.path)
+	if !f.overwrite {
+		f, err := p.ReadFile(ctx, f.path, true)
 		if err != nil && !errors.Is(err, errPathNotExist) {
+			return err
+		}
+		if f != nil {
 			return fmt.Errorf("file at %s is already exist", f.path)
 		}
 	}
@@ -219,6 +231,16 @@ func (p LinuxBox) UpdateFile(ctx context.Context, old, new *File) (err error) {
 		return p.DeleteFile(ctx, old)
 	}
 
+	if !new.overwrite {
+		f, err := p.ReadFile(ctx, new.path, true)
+		if err != nil && !errors.Is(err, errPathNotExist) {
+			return err
+		}
+		if f != nil {
+			return fmt.Errorf("file at %s is already exist", f.path)
+		}
+	}
+
 	if old.path != new.path {
 		opath, npath := shellescape.Quote(old.path), shellescape.Quote(new.path)
 		cmd := fmt.Sprintf(`mv %s %s`, opath, npath)
@@ -229,7 +251,7 @@ func (p LinuxBox) UpdateFile(ctx context.Context, old, new *File) (err error) {
 
 	f := &File{}
 	*f = *new
-	f.replace = true
+	f.overwrite = true
 	return p.CreateFile(ctx, f)
 }
 

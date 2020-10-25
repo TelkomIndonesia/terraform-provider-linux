@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/spf13/cast"
 )
@@ -16,7 +17,7 @@ const (
 	attrFileGroup         = "group"
 	attrFileMode          = "mode"
 	attrFileIgnoreContent = "ignore_content"
-	attrFileReplace       = "replace"
+	attrFileOverwrite     = "overwrite"
 	attrFileRecyclePath   = "recycle_path"
 )
 
@@ -54,11 +55,11 @@ var schemaFileResource = map[string]*schema.Schema{
 		Default:     false,
 		Description: "If true, `content` will be ignored and won't be included in schema diff",
 	},
-	attrFileReplace: {
+	attrFileOverwrite: {
 		Type:        schema.TypeBool,
 		Optional:    true,
 		Default:     false,
-		Description: "If true, existing file on remote will be replaced on create or update (when path changed)",
+		Description: "If true, existing file on remote will be replaced on create or update",
 	},
 	attrFileRecyclePath: {
 		Type:        schema.TypeString,
@@ -72,59 +73,61 @@ type fileResourceHandler struct{}
 
 var frh fileResourceHandler
 
-func (fileResourceHandler) Read(rd *schema.ResourceData, i interface{}) (err error) {
+func (fileResourceHandler) Read(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
 	l := i.(LinuxBox)
-	f, err := l.ReadFile(context.Background(), cast.ToString(rd.Get(attrFilePath)))
+	f, err := l.ReadFile(ctx, cast.ToString(rd.Get(attrFilePath)), cast.ToBool(rd.Get(attrFileIgnoreContent)))
 	if err != nil && !errors.Is(err, errPathNotExist) {
-		return
+		return diag.FromErr(err)
 	}
-	return f.setResourceData(rd)
+
+	f.overwrite = cast.ToBool(rd.Get(attrFileOverwrite))
+	f.recyclePath = cast.ToString(rd.Get(attrFileRecyclePath))
+	if err = f.setResourceData(rd); err != nil {
+		diag.FromErr(err)
+	}
+	return
 }
 
-func (frh fileResourceHandler) Create(rd *schema.ResourceData, i interface{}) (err error) {
+func (frh fileResourceHandler) Create(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
 	l := i.(LinuxBox)
 	f := newFileFromResourceData(rd)
-	err = l.CreateFile(context.Background(), f)
-	if err != nil {
-		return
+	if err := l.CreateFile(ctx, f); err != nil {
+		return diag.FromErr(err)
 	}
 	id, err := uuid.NewRandom()
 	if err != nil {
-		return
-	}
-	rd.SetId(id.String())
-	if len(rd.ConnInfo()) == 0 {
-		rd.SetConnInfo(l.connInfo)
+		return diag.FromErr(err)
 	}
 
-	return frh.Read(rd, i)
+	rd.SetId(id.String())
+	return frh.Read(ctx, rd, i)
 }
 
-func (frh fileResourceHandler) Update(rd *schema.ResourceData, i interface{}) (err error) {
+func (frh fileResourceHandler) Update(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
 	l := i.(LinuxBox)
 	old, new := newDiffedFileFromResourceData(rd)
-	if err = l.UpdateFile(context.Background(), old, new); err != nil {
-		return
+	if err := l.UpdateFile(ctx, old, new); err != nil {
+		_ = old.setResourceData(rd) // revert state
+		return diag.FromErr(err)
 	}
 
-	return frh.Read(rd, i)
+	return frh.Read(ctx, rd, i)
 }
 
-func (fileResourceHandler) Delete(rd *schema.ResourceData, i interface{}) (err error) {
+func (fileResourceHandler) Delete(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
 	l := i.(LinuxBox)
-	if err = l.DeleteFile(context.Background(), newFileFromResourceData(rd)); err != nil {
-		return
+	if err := l.DeleteFile(ctx, newFileFromResourceData(rd)); err != nil {
+		return diag.FromErr(err)
 	}
-	var z *File
-	return z.setResourceData(rd)
+	return
 }
 
 func fileResource() *schema.Resource {
 	return &schema.Resource{
-		Schema: schemaFileResource,
-		Create: frh.Create,
-		Read:   frh.Read,
-		Update: frh.Update,
-		Delete: frh.Delete,
+		Schema:        schemaFileResource,
+		CreateContext: frh.Create,
+		ReadContext:   frh.Read,
+		UpdateContext: frh.Update,
+		DeleteContext: frh.Delete,
 	}
 }
