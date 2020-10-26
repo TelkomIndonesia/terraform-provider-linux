@@ -65,69 +65,158 @@ var schemaFileResource = map[string]*schema.Schema{
 		Type:        schema.TypeString,
 		Optional:    true,
 		Default:     "",
-		Description: "Path to parent directory of a generated-unix-timestamp folder where the file will be placed when destroyed",
+		Description: "Path to parent directory of a generated-unix-timestamp directory where the file will be placed on destroy",
 	},
 }
 
-type fileResourceHandler struct{}
+type handlerFileResource struct{}
 
-var frh fileResourceHandler
+func (handlerFileResource) newFile(rd *schema.ResourceData) (f *file) {
+	if rd == nil {
+		return
+	}
+	f = &file{
+		path:    cast.ToString(rd.Get(attrFilePath)),
+		content: cast.ToString(rd.Get(attrFileContent)),
+		permission: permission{
+			owner: cast.ToUint16(rd.Get(attrFileOwner)),
+			group: cast.ToUint16(rd.Get(attrFileGroup)),
+			mode:  cast.ToString(rd.Get(attrFileMode)),
+		},
+		ignoreContent: cast.ToBool(rd.Get(attrFileIgnoreContent)),
+		overwrite:     cast.ToBool(rd.Get(attrFileOverwrite)),
+		recyclePath:   cast.ToString(rd.Get(attrFileRecyclePath)),
+	}
+	return
+}
 
-func (fileResourceHandler) Read(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
-	l := i.(LinuxBox)
-	f, err := l.ReadFile(ctx, cast.ToString(rd.Get(attrFilePath)), cast.ToBool(rd.Get(attrFileIgnoreContent)))
+func (handlerFileResource) newDiffedFile(rd *schema.ResourceData) (old, new *file) {
+	if rd == nil {
+		return
+	}
+	old, new = &file{}, &file{}
+
+	o, n := rd.GetChange(attrFilePath)
+	old.path, new.path = cast.ToString(o), cast.ToString(n)
+
+	o, n = rd.GetChange(attrFileContent)
+	old.content, new.content = cast.ToString(o), cast.ToString(n)
+
+	o, n = rd.GetChange(attrFileOwner)
+	old.permission.owner, new.permission.owner = cast.ToUint16(o), cast.ToUint16(n)
+
+	o, n = rd.GetChange(attrFileGroup)
+	old.permission.group, new.permission.group = cast.ToUint16(o), cast.ToUint16(n)
+
+	o, n = rd.GetChange(attrFileMode)
+	old.permission.mode, new.permission.mode = cast.ToString(o), cast.ToString(n)
+
+	o, n = rd.GetChange(attrFileIgnoreContent)
+	old.ignoreContent, new.ignoreContent = cast.ToBool(o), cast.ToBool(n)
+
+	o, n = rd.GetChange(attrFileOverwrite)
+	old.overwrite, new.overwrite = cast.ToBool(o), cast.ToBool(n)
+
+	o, n = rd.GetChange(attrFileRecyclePath)
+	old.recyclePath, new.recyclePath = cast.ToString(o), cast.ToString(n)
+	return
+}
+
+func (handlerFileResource) updateResourceData(f *file, rd *schema.ResourceData) (err error) {
+	if f == nil {
+		rd.SetId("")
+		return
+	}
+
+	if err = rd.Set(attrFilePath, f.path); err != nil {
+		return
+	}
+	if err = rd.Set(attrFileOwner, f.permission.owner); err != nil {
+		return
+	}
+	if err = rd.Set(attrFileGroup, f.permission.group); err != nil {
+		return
+	}
+	if err = rd.Set(attrFileMode, f.permission.mode); err != nil {
+		return
+	}
+	if err = rd.Set(attrFileOverwrite, f.overwrite); err != nil {
+		return
+	}
+	if err = rd.Set(attrFileRecyclePath, f.recyclePath); err != nil {
+		return
+	}
+
+	if err = rd.Set(attrFileIgnoreContent, f.ignoreContent); err != nil {
+		return
+	}
+	if f.ignoreContent {
+		return
+	}
+	if err = rd.Set(attrFileContent, f.content); err != nil {
+		return
+	}
+	return
+}
+
+func (h handlerFileResource) Read(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
+	l := i.(linuxBox)
+	f, err := l.readFile(ctx, cast.ToString(rd.Get(attrFilePath)), cast.ToBool(rd.Get(attrFileIgnoreContent)))
 	if err != nil && !errors.Is(err, errPathNotExist) {
 		return diag.FromErr(err)
 	}
 
 	f.overwrite = cast.ToBool(rd.Get(attrFileOverwrite))
 	f.recyclePath = cast.ToString(rd.Get(attrFileRecyclePath))
-	if err = f.setResourceData(rd); err != nil {
+	if err = h.updateResourceData(f, rd); err != nil {
 		diag.FromErr(err)
 	}
 	return
 }
 
-func (frh fileResourceHandler) Create(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
-	l := i.(LinuxBox)
-	f := newFileFromResourceData(rd)
-	if err := l.CreateFile(ctx, f); err != nil {
+func (h handlerFileResource) Create(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
+	l := i.(linuxBox)
+	f := h.newFile(rd)
+	if err := l.createFile(ctx, f); err != nil {
 		return diag.FromErr(err)
 	}
+
 	id, err := uuid.NewRandom()
 	if err != nil {
 		return diag.FromErr(err)
 	}
 
 	rd.SetId(id.String())
-	return frh.Read(ctx, rd, i)
+	return h.Read(ctx, rd, i)
 }
 
-func (frh fileResourceHandler) Update(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
-	l := i.(LinuxBox)
-	old, new := newDiffedFileFromResourceData(rd)
-	if err := l.UpdateFile(ctx, old, new); err != nil {
-		_ = old.setResourceData(rd) // revert state
+func (h handlerFileResource) Update(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
+	l := i.(linuxBox)
+	old, new := h.newDiffedFile(rd)
+	err := l.updateFile(ctx, old, new)
+	if err != nil {
+		_ = h.updateResourceData(old, rd) // revert state
 		return diag.FromErr(err)
 	}
 
-	return frh.Read(ctx, rd, i)
+	return h.Read(ctx, rd, i)
 }
 
-func (fileResourceHandler) Delete(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
-	l := i.(LinuxBox)
-	if err := l.DeleteFile(ctx, newFileFromResourceData(rd)); err != nil {
+func (h handlerFileResource) Delete(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
+	l := i.(linuxBox)
+	if err := l.deleteFile(ctx, h.newFile(rd)); err != nil {
 		return diag.FromErr(err)
 	}
 	return
 }
 
 func fileResource() *schema.Resource {
+	var hfr handlerFileResource
 	return &schema.Resource{
 		Schema:        schemaFileResource,
-		CreateContext: frh.Create,
-		ReadContext:   frh.Read,
-		UpdateContext: frh.Update,
-		DeleteContext: frh.Delete,
+		CreateContext: hfr.Create,
+		ReadContext:   hfr.Read,
+		UpdateContext: hfr.Update,
+		DeleteContext: hfr.Delete,
 	}
 }

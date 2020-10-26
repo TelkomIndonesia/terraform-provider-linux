@@ -52,9 +52,7 @@ func testAccLinuxBoxFileBasicConfig(path, pathPrev string) string {
 				when = destroy
 				inline = [
 					<<-EOF
-						FILE="%s" 
-						mkdir -p $FILE || exit 10
-						rm -rf $FILE || exit 11
+						[ ! -e '%s' ] || exit 10
 					EOF
 				]
 			}
@@ -101,10 +99,10 @@ func testAccLinuxBoxFileBasicConfig(path, pathPrev string) string {
 			provisioner "remote-exec" {
 				inline 		= [
 					<<-EOF
-						[ ! -f "${self.triggers.path_previous}"  ] || exit 12
+						[ ! -e "${self.triggers.path_previous}"  ] || exit 12
 						cmp -s "${self.triggers.path}" "${self.triggers.path_compare}" || exit 13
 						[ "$( stat -c %%u '${self.triggers.path}' )" == "${self.triggers.owner}" ] || exit 14
-						[ "$( stat -c %%g '${self.triggers.path}' )" == "${self.triggers.group}" ] || exit 14
+						[ "$( stat -c %%g '${self.triggers.path}' )" == "${self.triggers.group}" ] || exit 15
 						[ "$( stat -c %%a '${self.triggers.path}' )" == "${self.triggers.mode}" ] || exit 16
 					EOF
 				]
@@ -130,14 +128,14 @@ func TestAccLinuxBoxFileOverride(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config:      testAccLinuxBoxFileOverrideConfig(path, path+".neverexist", false),
-				ExpectError: regexp.MustCompile("is already exist"),
+				ExpectError: regexp.MustCompile(" exist"),
 			},
 			{
 				Config: testAccLinuxBoxFileOverrideConfig(path, path+".neverexist", true),
 			},
 			{
 				Config:      testAccLinuxBoxFileOverrideConfig(path+".new", path, false),
-				ExpectError: regexp.MustCompile("is already exist"),
+				ExpectError: regexp.MustCompile(" exist"),
 			},
 			{
 				Config: testAccLinuxBoxFileOverrideConfig(path+".new", path, true),
@@ -216,10 +214,10 @@ func testAccLinuxBoxFileOverrideConfig(path, pathPrev string, overwrite bool) st
 			provisioner "remote-exec" {
 				inline 		= [
 					<<-EOF
-						[ ! -f "${self.triggers.path_previous}"  ] || exit 12
+						[ ! -e "${self.triggers.path_previous}"  ] || exit 12
 						cmp -s "${self.triggers.path}" "${self.triggers.path_compare}" || exit 13
 						[ "$( stat -c %%u '${self.triggers.path}' )" == "${self.triggers.owner}" ] || exit 14
-						[ "$( stat -c %%g '${self.triggers.path}' )" == "${self.triggers.group}" ] || exit 14
+						[ "$( stat -c %%g '${self.triggers.path}' )" == "${self.triggers.group}" ] || exit 15
 						[ "$( stat -c %%a '${self.triggers.path}' )" == "${self.triggers.mode}" ] || exit 16
 					EOF
 				]
@@ -261,13 +259,13 @@ func testAccLinuxBoxFileIgnoreContentConfig(path, pathPrev, content string) stri
 			user = "root"
 			password = "root"
 		}
-
-		locals {
-			new_content = "new content"
-		}
 	`)
 
 	linuxbox := heredoc.Docf(`
+		locals {
+			new_content = "new content"
+		}
+
 		resource "linuxbox_file" "ignore_content" {
 			path = "%s"
 			content = "%s"
@@ -315,10 +313,10 @@ func testAccLinuxBoxFileIgnoreContentConfig(path, pathPrev, content string) stri
 			provisioner "remote-exec" {
 				inline 		= [
 					<<-EOF
-						[ ! -f "${self.triggers.path_previous}"  ] || exit 12
+						[ ! -e "${self.triggers.path_previous}"  ] || exit 12
 						cmp -s "${self.triggers.path}" "${self.triggers.path_compare}" || exit 13
 						[ "$( stat -c %%u '${self.triggers.path}' )" == "${self.triggers.owner}" ] || exit 14
-						[ "$( stat -c %%g '${self.triggers.path}' )" == "${self.triggers.group}" ] || exit 14
+						[ "$( stat -c %%g '${self.triggers.path}' )" == "${self.triggers.group}" ] || exit 15
 						[ "$( stat -c %%a '${self.triggers.path}' )" == "${self.triggers.mode}" ] || exit 16
 					EOF
 				]
@@ -360,7 +358,13 @@ func testAccLinuxBoxFileRecyclePathConfig(path, pathPrev string) string {
 	`)
 
 	destroyChecker := heredoc.Docf(`
+		locals {
+			recycle_path = "/tmp/recycle"
+		}
 		resource "null_resource" "destroy_checker" {
+			triggers = {
+				recycle_path = local.recycle_path
+			}
 			connection {
 				type     = "ssh"
 				host     = "127.0.0.1"
@@ -374,10 +378,9 @@ func testAccLinuxBoxFileRecyclePathConfig(path, pathPrev string) string {
 				inline = [
 					<<-EOF
 						FILE="%s" 
-						mkdir -p $FILE || exit 10
-						rm -rf $FILE || exit 11
-						find /tmp/recycle -name "$(basename "$FILE")" | grep . || exit 17
-						rm -rf /tmp/recycle || exit 18
+						[ ! -e '%s' ] || exit 10
+						find ${self.triggers.recycle_path} -name "$(basename "$FILE")" | grep . || exit 17
+						rm -rf ${self.triggers.recycle_path} || exit 18
 					EOF
 				]
 			}
@@ -395,7 +398,7 @@ func testAccLinuxBoxFileRecyclePathConfig(path, pathPrev string) string {
 			owner = 1001
 			group = 1001
 			mode = 644
-			recycle_path = "/tmp/recycle"
+			recycle_path = local.recycle_path
 		}
 	`, path)
 
@@ -407,6 +410,7 @@ func testAccLinuxBoxFileRecyclePathConfig(path, pathPrev string) string {
 				owner = linuxbox_file.basic.owner
 				group = linuxbox_file.basic.group
 				mode = linuxbox_file.basic.mode
+				recycle_path = linuxbox_file.basic.recycle_path
 
 				path_previous = "%s"
 				path_compare = "${linuxbox_file.basic.path}.compare"
@@ -425,10 +429,10 @@ func testAccLinuxBoxFileRecyclePathConfig(path, pathPrev string) string {
 			provisioner "remote-exec" {
 				inline 		= [
 					<<-EOF
-						[ ! -f "${self.triggers.path_previous}"  ] || exit 12
+						[ ! -e "${self.triggers.path_previous}"  ] || exit 12
 						cmp -s "${self.triggers.path}" "${self.triggers.path_compare}" || exit 13
 						[ "$( stat -c %%u '${self.triggers.path}' )" == "${self.triggers.owner}" ] || exit 14
-						[ "$( stat -c %%g '${self.triggers.path}' )" == "${self.triggers.group}" ] || exit 14
+						[ "$( stat -c %%g '${self.triggers.path}' )" == "${self.triggers.group}" ] || exit 15
 						[ "$( stat -c %%a '${self.triggers.path}' )" == "${self.triggers.mode}" ] || exit 16
 					EOF
 				]

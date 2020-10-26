@@ -5,6 +5,9 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform/communicator/ssh"
+	"github.com/hashicorp/terraform/terraform"
+	"github.com/spf13/cast"
 )
 
 const (
@@ -123,6 +126,7 @@ var schemaProvider = map[string]*schema.Schema{
 		Type:        schema.TypeString,
 		Optional:    true,
 		Description: "The path used to copy scripts meant for remote execution.",
+		Default:     "/tmp/linuxbox-%RAND%.sh",
 	},
 	attrProviderTimeout: {
 		Type:        schema.TypeString,
@@ -130,6 +134,45 @@ var schemaProvider = map[string]*schema.Schema{
 		Default:     "5m",
 		Description: " The timeout to wait for the connection to become available. Should be provided as a string like `30s` or `5m`. Defaults to 5 minutes.",
 	},
+}
+
+func newLinuxBoxFromSchema(d *schema.ResourceData) (p linuxBox, err error) {
+	connInfo := map[string]string{
+		"type": "ssh",
+
+		attrProviderHost:    cast.ToString(d.Get(attrProviderHost)),
+		attrProviderPort:    cast.ToString(d.Get(attrProviderPort)),
+		attrProviderHostKey: cast.ToString(d.Get(attrProviderHostKey)),
+
+		attrProviderUser:        cast.ToString(d.Get(attrProviderUser)),
+		attrProviderPassword:    cast.ToString(d.Get(attrProviderPassword)),
+		attrProviderPrivateKey:  cast.ToString(d.Get(attrProviderPrivateKey)),
+		attrProviderCertificate: cast.ToString(d.Get(attrProviderCertificate)),
+
+		attrProviderAgent:         cast.ToString(d.Get(attrProviderAgent)),
+		attrProviderAgentIdentity: cast.ToString(d.Get(attrProviderAgentIdentity)),
+
+		attrProviderBastionHost:        cast.ToString(d.Get(attrProviderBastionHost)),
+		attrProviderBastionPort:        cast.ToString(d.Get(attrProviderBastionPort)),
+		attrProviderBastionHostKey:     cast.ToString(d.Get(attrProviderBastionHostKey)),
+		attrProviderBastionUser:        cast.ToString(d.Get(attrProviderBastionUser)),
+		attrProviderBastionPassword:    cast.ToString(d.Get(attrProviderBastionPassword)),
+		attrProviderBastionPrivateKey:  cast.ToString(d.Get(attrProviderBastionPrivateKey)),
+		attrProviderBastionCertificate: cast.ToString(d.Get(attrProviderBastionCertificate)),
+
+		attrProviderScriptPath: cast.ToString(d.Get(attrProviderScriptPath)),
+		attrProviderTimeout:    cast.ToString(d.Get(attrProviderTimeout)),
+	}
+	c, err := ssh.New(&terraform.InstanceState{Ephemeral: terraform.EphemeralState{
+		ConnInfo: connInfo,
+	}})
+	if err != nil {
+		return
+	}
+	if err = c.Connect(nil); err != nil {
+		return
+	}
+	return linuxBox{communicator: c, connInfo: connInfo}, nil
 }
 
 func Provider() *schema.Provider {
@@ -144,7 +187,8 @@ func Provider() *schema.Provider {
 		},
 
 		ResourcesMap: map[string]*schema.Resource{
-			"linuxbox_file": fileResource(),
+			"linuxbox_file":      fileResource(),
+			"linuxbox_directory": directoryResource(),
 		},
 	}
 }
