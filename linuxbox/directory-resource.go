@@ -162,7 +162,7 @@ func (h handlerDirectoryResource) Update(ctx context.Context, rd *schema.Resourc
 	old, new := h.newDiffedDirectory(rd)
 	err := l.updateDirectory(ctx, old, new)
 	if err != nil {
-		_ = h.updateResourceData(old, rd) // revert state
+		_ = h.updateResourceData(old, rd) // WARN: see https://github.com/hashicorp/terraform-plugin-sdk/issues/476
 		return diag.FromErr(err)
 	}
 

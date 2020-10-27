@@ -195,7 +195,7 @@ func (h handlerFileResource) Update(ctx context.Context, rd *schema.ResourceData
 	old, new := h.newDiffedFile(rd)
 	err := l.updateFile(ctx, old, new)
 	if err != nil {
-		_ = h.updateResourceData(old, rd) // revert state
+		_ = h.updateResourceData(old, rd) // WARN: see https://github.com/hashicorp/terraform-plugin-sdk/issues/476
 		return diag.FromErr(err)
 	}
 

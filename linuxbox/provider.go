@@ -189,6 +189,7 @@ func Provider() *schema.Provider {
 		ResourcesMap: map[string]*schema.Resource{
 			"linuxbox_file":      fileResource(),
 			"linuxbox_directory": directoryResource(),
+			"linuxbox_script":    scriptResource(),
 		},
 	}
 }
