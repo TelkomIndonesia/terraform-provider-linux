@@ -63,13 +63,14 @@ func (sc *script) exec(ctx context.Context) (res string, err error) {
 	err = sc.l.exec(
 		&remote.Cmd{
 			Command: cmd,
-			Stdin:   sc.stdin, //TODO: this doesn't seems to work
+			Stdin:   sc.stdin,
 			Stdout:  stdout,
 			Stderr:  stderr,
 		},
 	)
 	if err != nil {
 		err = fmt.Errorf("stderr: %s, error: %v", stderr, err)
+		return
 	}
 	return stdout.String(), nil
 }

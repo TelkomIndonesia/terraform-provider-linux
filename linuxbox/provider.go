@@ -163,7 +163,7 @@ func newLinuxBoxFromSchema(d *schema.ResourceData) (p linuxBox, err error) {
 		attrProviderScriptPath: cast.ToString(d.Get(attrProviderScriptPath)),
 		attrProviderTimeout:    cast.ToString(d.Get(attrProviderTimeout)),
 	}
-	c, err := ssh.New(&terraform.InstanceState{Ephemeral: terraform.EphemeralState{
+	c, err := ssh.NewNoPty(&terraform.InstanceState{Ephemeral: terraform.EphemeralState{
 		ConnInfo: connInfo,
 	}})
 	if err != nil {

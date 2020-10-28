@@ -65,7 +65,7 @@ func testAccLinuxBoxDirectoryBasicConfig(path, pathPrev string) string {
 				]
 			}
 		}
-	`, path)
+	`, path, path)
 
 	linuxbox := heredoc.Docf(`
 		resource "linuxbox_directory" "basic" {

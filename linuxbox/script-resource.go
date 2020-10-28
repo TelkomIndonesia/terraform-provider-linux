@@ -112,6 +112,10 @@ func (h handlerScriptResource) Read(ctx context.Context, rd *schema.ResourceData
 	if err != nil {
 		return diag.FromErr(err)
 	}
+	if res == "" {
+		rd.SetId("")
+		return
+	}
 	if err = rd.Set(attrScriptOutput, res); err != nil {
 		return diag.FromErr(err)
 	}
@@ -134,6 +138,24 @@ func (h handlerScriptResource) Create(ctx context.Context, rd *schema.ResourceDa
 	return h.Read(ctx, rd, i)
 }
 
+func (h handlerScriptResource) restoreDirtyUpdate(rd *schema.ResourceData) (err error) {
+	for _, k := range []string{
+		attrScriptLifecycleCommands,
+		attrScriptEnvironment,
+		attrScriptSensitiveEnvironment,
+		attrScriptInterpreter,
+		attrScriptWorkingDirectory,
+		attrScriptOutput,
+	} {
+		o, _ := rd.GetChange(k)
+		err = rd.Set(k, o)
+		if err != nil {
+			return
+		}
+	}
+	return
+}
+
 func (h handlerScriptResource) Update(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
 	l := i.(linuxBox)
 	sc := h.newScript(rd, l, attrScriptLifecycleCommandUpdate)
@@ -141,7 +163,7 @@ func (h handlerScriptResource) Update(ctx context.Context, rd *schema.ResourceDa
 	sc.stdin = strings.NewReader(oldOutput)
 	_, err := sc.exec(ctx)
 	if err != nil {
-		_ = rd.Set(attrScriptOutput, oldOutput) // Restore output only, since it's the only thing that can be accessed by script. WARN: see https://github.com/hashicorp/terraform-plugin-sdk/issues/476
+		_ = h.restoreDirtyUpdate(rd) // WARN: see https://github.com/hashicorp/terraform-plugin-sdk/issues/476
 		return diag.FromErr(err)
 	}
 	return h.Read(ctx, rd, i)
@@ -171,13 +193,12 @@ func scriptResource() *schema.Resource {
 			if _, ok := rd.GetOk(attrScriptLifecycleCommands + ".0." + attrScriptLifecycleCommandUpdate); ok {
 				return
 			}
-
-			// TODO: rd.UpdatedKeys() doesn't work
-			for _, k := range rd.UpdatedKeys() {
-				if k == attrScriptTriggers {
+			for _, k := range rd.GetChangedKeysPrefix("") {
+				root := strings.Split(k, ".")[0]
+				if root == attrScriptTriggers { // already force new
 					continue
 				}
-				err = rd.ForceNew(k)
+				err = rd.ForceNew(root)
 				if err != nil {
 					return
 				}

@@ -3,7 +3,6 @@ package linuxbox
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"strconv"
@@ -104,15 +103,11 @@ func (l linuxBox) mkdirp(ctx context.Context, path string) (err error) {
 
 func (l linuxBox) cat(ctx context.Context, path string) (s string, err error) {
 	stdout := new(bytes.Buffer)
-	cmd := fmt.Sprintf("cat %s | base64", shellescape.Quote(path))
+	cmd := fmt.Sprintf("cat %s", shellescape.Quote(path))
 	if err = l.exec(&remote.Cmd{Command: cmd, Stdout: stdout}); err != nil {
 		return
 	}
-	b, err := base64.StdEncoding.DecodeString(stdout.String())
-	if err != nil {
-		return
-	}
-	return string(b), nil
+	return stdout.String(), nil
 }
 
 func (l linuxBox) mv(ctx context.Context, old, new string) (err error) {
