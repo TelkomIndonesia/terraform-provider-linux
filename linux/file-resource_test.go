@@ -1,4 +1,4 @@
-package linuxbox
+package linux
 
 import (
 	"regexp"
@@ -9,8 +9,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 )
 
-func TestAccLinuxBoxFileBasic(t *testing.T) {
-	path := "/tmp/linuxbox/" + acctest.RandString(8)
+func TestAccLinuxFileBasic(t *testing.T) {
+	path := "/tmp/linux/" + acctest.RandString(8)
 	resource.Test(t, resource.TestCase{
 		ExternalProviders: map[string]resource.ExternalProvider{
 			"null": {},
@@ -19,18 +19,18 @@ func TestAccLinuxBoxFileBasic(t *testing.T) {
 		Providers: testAccProviders,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccLinuxBoxFileBasicConfig(path, path+".neverexist"),
+				Config: testAccLinuxFileBasicConfig(path, path+".neverexist"),
 			},
 			{
-				Config: testAccLinuxBoxFileBasicConfig(path+".new", path),
+				Config: testAccLinuxFileBasicConfig(path+".new", path),
 			},
 		},
 	})
 }
 
-func testAccLinuxBoxFileBasicConfig(path, pathPrev string) string {
+func testAccLinuxFileBasicConfig(path, pathPrev string) string {
 	provider := heredoc.Docf(`
-		provider "linuxbox" {
+		provider "linux" {
 			host = "127.0.0.1"
 			port = 2222
 			user = "root"
@@ -59,8 +59,8 @@ func testAccLinuxBoxFileBasicConfig(path, pathPrev string) string {
 		}
 	`, path)
 
-	linuxbox := heredoc.Docf(`
-		resource "linuxbox_file" "basic" {
+	linux := heredoc.Docf(`
+		resource "linux_file" "basic" {
 			depends_on = [ null_resource.destroy_checker]
 			path = "%s"
 			content = <<-EOF
@@ -76,14 +76,14 @@ func testAccLinuxBoxFileBasicConfig(path, pathPrev string) string {
 	createChecker := heredoc.Docf(`
 		resource "null_resource" "create_checker" {
 			triggers = {
-				path = linuxbox_file.basic.path
-				content = linuxbox_file.basic.content
-				owner = linuxbox_file.basic.owner
-				group = linuxbox_file.basic.group
-				mode = linuxbox_file.basic.mode
+				path = linux_file.basic.path
+				content = linux_file.basic.content
+				owner = linux_file.basic.owner
+				group = linux_file.basic.group
+				mode = linux_file.basic.mode
 
 				path_previous = "%s"
-				path_compare = "${linuxbox_file.basic.path}.compare"
+				path_compare = "${linux_file.basic.path}.compare"
 			}
 			connection {
 				type     = "ssh"
@@ -114,11 +114,11 @@ func testAccLinuxBoxFileBasicConfig(path, pathPrev string) string {
 		}
 	`, pathPrev)
 
-	return provider + destroyChecker + linuxbox + createChecker
+	return provider + destroyChecker + linux + createChecker
 }
 
-func TestAccLinuxBoxFileOverride(t *testing.T) {
-	path := "/tmp/linuxbox/" + acctest.RandString(8)
+func TestAccLinuxFileOverride(t *testing.T) {
+	path := "/tmp/linux/" + acctest.RandString(8)
 	resource.Test(t, resource.TestCase{
 		ExternalProviders: map[string]resource.ExternalProvider{
 			"null": {},
@@ -127,26 +127,26 @@ func TestAccLinuxBoxFileOverride(t *testing.T) {
 		Providers: testAccProviders,
 		Steps: []resource.TestStep{
 			{
-				Config:      testAccLinuxBoxFileOverrideConfig(path, path+".neverexist", false),
+				Config:      testAccLinuxFileOverrideConfig(path, path+".neverexist", false),
 				ExpectError: regexp.MustCompile(" exist"),
 			},
 			{
-				Config: testAccLinuxBoxFileOverrideConfig(path, path+".neverexist", true),
+				Config: testAccLinuxFileOverrideConfig(path, path+".neverexist", true),
 			},
 			{
-				Config:      testAccLinuxBoxFileOverrideConfig(path+".new", path, false),
+				Config:      testAccLinuxFileOverrideConfig(path+".new", path, false),
 				ExpectError: regexp.MustCompile(" exist"),
 			},
 			{
-				Config: testAccLinuxBoxFileOverrideConfig(path+".new", path, true),
+				Config: testAccLinuxFileOverrideConfig(path+".new", path, true),
 			},
 		},
 	})
 }
 
-func testAccLinuxBoxFileOverrideConfig(path, pathPrev string, overwrite bool) string {
+func testAccLinuxFileOverrideConfig(path, pathPrev string, overwrite bool) string {
 	provider := heredoc.Docf(`
-		provider "linuxbox" {
+		provider "linux" {
 			host = "127.0.0.1"
 			port = 2222
 			user = "root"
@@ -173,8 +173,8 @@ func testAccLinuxBoxFileOverrideConfig(path, pathPrev string, overwrite bool) st
 		}
 	`, path)
 
-	linuxbox := heredoc.Docf(`
-		resource "linuxbox_file" "overwrite" {
+	linux := heredoc.Docf(`
+		resource "linux_file" "overwrite" {
 			depends_on = [ null_resource.existing]
 			path = "%s"
 			content = <<-EOF
@@ -191,14 +191,14 @@ func testAccLinuxBoxFileOverrideConfig(path, pathPrev string, overwrite bool) st
 	createChecker := heredoc.Docf(`
 		resource "null_resource" "create_checker" {
 			triggers = {
-				path = linuxbox_file.overwrite.path
-				content = linuxbox_file.overwrite.content
-				owner = linuxbox_file.overwrite.owner
-				group = linuxbox_file.overwrite.group
-				mode = linuxbox_file.overwrite.mode
+				path = linux_file.overwrite.path
+				content = linux_file.overwrite.content
+				owner = linux_file.overwrite.owner
+				group = linux_file.overwrite.group
+				mode = linux_file.overwrite.mode
 
 				path_previous = "%s"
-				path_compare = "${linuxbox_file.overwrite.path}.compare"
+				path_compare = "${linux_file.overwrite.path}.compare"
 			}
 			connection {
 				type     = "ssh"
@@ -229,11 +229,11 @@ func testAccLinuxBoxFileOverrideConfig(path, pathPrev string, overwrite bool) st
 		}
 	`, pathPrev)
 
-	return provider + existing + linuxbox + createChecker
+	return provider + existing + linux + createChecker
 }
 
-func TestAccLinuxBoxFileIgnoreContent(t *testing.T) {
-	path := "/tmp/linuxbox/" + acctest.RandString(8)
+func TestAccLinuxFileIgnoreContent(t *testing.T) {
+	path := "/tmp/linux/" + acctest.RandString(8)
 	resource.Test(t, resource.TestCase{
 		ExternalProviders: map[string]resource.ExternalProvider{
 			"null": {},
@@ -242,18 +242,18 @@ func TestAccLinuxBoxFileIgnoreContent(t *testing.T) {
 		Providers: testAccProviders,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccLinuxBoxFileIgnoreContentConfig(path, path+".neverexist", "first"),
+				Config: testAccLinuxFileIgnoreContentConfig(path, path+".neverexist", "first"),
 			},
 			{
-				Config: testAccLinuxBoxFileIgnoreContentConfig(path, path+".neverexist", "second"),
+				Config: testAccLinuxFileIgnoreContentConfig(path, path+".neverexist", "second"),
 			},
 		},
 	})
 }
 
-func testAccLinuxBoxFileIgnoreContentConfig(path, pathPrev, content string) string {
+func testAccLinuxFileIgnoreContentConfig(path, pathPrev, content string) string {
 	provider := heredoc.Docf(`
-		provider "linuxbox" {
+		provider "linux" {
 			host = "127.0.0.1"
 			port = 2222
 			user = "root"
@@ -261,12 +261,12 @@ func testAccLinuxBoxFileIgnoreContentConfig(path, pathPrev, content string) stri
 		}
 	`)
 
-	linuxbox := heredoc.Docf(`
+	linux := heredoc.Docf(`
 		locals {
 			new_content = "new content"
 		}
 
-		resource "linuxbox_file" "ignore_content" {
+		resource "linux_file" "ignore_content" {
 			path = "%s"
 			content = "%s"
 			owner = 1001
@@ -290,14 +290,14 @@ func testAccLinuxBoxFileIgnoreContentConfig(path, pathPrev, content string) stri
 	createChecker := heredoc.Docf(`
 		resource "null_resource" "create_checker" {
 			triggers = {
-				path = linuxbox_file.ignore_content.path
-				owner = linuxbox_file.ignore_content.owner
-				group = linuxbox_file.ignore_content.group
-				mode = linuxbox_file.ignore_content.mode
-				content = linuxbox_file.ignore_content.content
+				path = linux_file.ignore_content.path
+				owner = linux_file.ignore_content.owner
+				group = linux_file.ignore_content.group
+				mode = linux_file.ignore_content.mode
+				content = linux_file.ignore_content.content
 
 				path_previous = "%s"
-				path_compare = "${linuxbox_file.ignore_content.path}.compare"
+				path_compare = "${linux_file.ignore_content.path}.compare"
 			}
 			connection {
 				type     = "ssh"
@@ -328,11 +328,11 @@ func testAccLinuxBoxFileIgnoreContentConfig(path, pathPrev, content string) stri
 		}
 	`, pathPrev)
 
-	return provider + linuxbox + createChecker
+	return provider + linux + createChecker
 }
 
-func TestAccLinuxBoxFileRecyclePath(t *testing.T) {
-	path := "/tmp/linuxbox/" + acctest.RandString(8)
+func TestAccLinuxFileRecyclePath(t *testing.T) {
+	path := "/tmp/linux/" + acctest.RandString(8)
 	resource.Test(t, resource.TestCase{
 		ExternalProviders: map[string]resource.ExternalProvider{
 			"null": {},
@@ -341,15 +341,15 @@ func TestAccLinuxBoxFileRecyclePath(t *testing.T) {
 		Providers: testAccProviders,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccLinuxBoxFileRecyclePathConfig(path, path+".neverexist"),
+				Config: testAccLinuxFileRecyclePathConfig(path, path+".neverexist"),
 			},
 		},
 	})
 }
 
-func testAccLinuxBoxFileRecyclePathConfig(path, pathPrev string) string {
+func testAccLinuxFileRecyclePathConfig(path, pathPrev string) string {
 	provider := heredoc.Docf(`
-		provider "linuxbox" {
+		provider "linux" {
 			host = "127.0.0.1"
 			port = 2222
 			user = "root"
@@ -387,8 +387,8 @@ func testAccLinuxBoxFileRecyclePathConfig(path, pathPrev string) string {
 		}
 	`, path)
 
-	linuxbox := heredoc.Docf(`
-		resource "linuxbox_file" "basic" {
+	linux := heredoc.Docf(`
+		resource "linux_file" "basic" {
 			depends_on = [ null_resource.destroy_checker]
 			path = "%s"
 			content = <<-EOF
@@ -405,15 +405,15 @@ func testAccLinuxBoxFileRecyclePathConfig(path, pathPrev string) string {
 	createChecker := heredoc.Docf(`
 		resource "null_resource" "create_checker" {
 			triggers = {
-				path = linuxbox_file.basic.path
-				content = linuxbox_file.basic.content
-				owner = linuxbox_file.basic.owner
-				group = linuxbox_file.basic.group
-				mode = linuxbox_file.basic.mode
-				recycle_path = linuxbox_file.basic.recycle_path
+				path = linux_file.basic.path
+				content = linux_file.basic.content
+				owner = linux_file.basic.owner
+				group = linux_file.basic.group
+				mode = linux_file.basic.mode
+				recycle_path = linux_file.basic.recycle_path
 
 				path_previous = "%s"
-				path_compare = "${linuxbox_file.basic.path}.compare"
+				path_compare = "${linux_file.basic.path}.compare"
 			}
 			connection {
 				type     = "ssh"
@@ -444,5 +444,5 @@ func testAccLinuxBoxFileRecyclePathConfig(path, pathPrev string) string {
 		}
 	`, pathPrev)
 
-	return provider + destroyChecker + linuxbox + createChecker
+	return provider + destroyChecker + linux + createChecker
 }

@@ -1,3 +1,5 @@
-# Terraform Provider Linuxbox
+# Terraform Provider Linux
 
-Ongoing development
+Terraform provider to manage linux machine via SSH.
+
+Ongoing Development.

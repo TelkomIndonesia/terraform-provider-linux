@@ -1,4 +1,4 @@
-package linuxbox
+package linux
 
 import (
 	"context"
@@ -16,7 +16,7 @@ type directory struct {
 	recyclePath string
 }
 
-func (l linuxBox) readDirectory(ctx context.Context, path string) (d *directory, err error) {
+func (l linux) readDirectory(ctx context.Context, path string) (d *directory, err error) {
 	perm, err := l.getPermission(ctx, path)
 	if err != nil {
 		return
@@ -25,7 +25,7 @@ func (l linuxBox) readDirectory(ctx context.Context, path string) (d *directory,
 	return
 }
 
-func (l linuxBox) createDirectory(ctx context.Context, d *directory) (err error) {
+func (l linux) createDirectory(ctx context.Context, d *directory) (err error) {
 	if d == nil {
 		return errNil
 	}
@@ -44,14 +44,14 @@ func (l linuxBox) createDirectory(ctx context.Context, d *directory) (err error)
 	return l.setPermission(ctx, d.path, d.permission)
 }
 
-func (l linuxBox) deleteDirectory(ctx context.Context, f *directory) (err error) {
+func (l linux) deleteDirectory(ctx context.Context, f *directory) (err error) {
 	if f == nil {
 		return
 	}
 	return l.remove(ctx, f.path, f.recyclePath)
 }
 
-func (l linuxBox) updateDirectory(ctx context.Context, old, new *directory) (err error) {
+func (l linux) updateDirectory(ctx context.Context, old, new *directory) (err error) {
 	if old == nil {
 		return l.createDirectory(ctx, new)
 	}

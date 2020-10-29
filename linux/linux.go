@@ -1,4 +1,4 @@
-package linuxbox
+package linux
 
 import (
 	"bytes"
@@ -19,12 +19,12 @@ var (
 	errNil          = errors.New("unexpected nil object")
 )
 
-type linuxBox struct {
+type linux struct {
 	communicator *ssh.Communicator
 	connInfo     map[string]string
 }
 
-func (p linuxBox) exec(cmd *remote.Cmd) (err error) {
+func (p linux) exec(cmd *remote.Cmd) (err error) {
 	if err = p.communicator.Start(cmd); err != nil {
 		return
 	}
@@ -37,14 +37,14 @@ type permission struct {
 	mode  string
 }
 
-func (l linuxBox) setPermission(ctx context.Context, path string, p permission) (err error) {
+func (l linux) setPermission(ctx context.Context, path string, p permission) (err error) {
 	pathSafe := shellescape.Quote(path)
 	cmd := fmt.Sprintf(`sh -c "chown %d:%d %s && chmod %s %s"`,
 		p.owner, p.group, pathSafe, p.mode, pathSafe)
 	return l.exec(&remote.Cmd{Command: cmd})
 }
 
-func (l linuxBox) getPermission(ctx context.Context, path string) (p permission, err error) {
+func (l linux) getPermission(ctx context.Context, path string) (p permission, err error) {
 	stdout := new(bytes.Buffer)
 	cmd := remote.Cmd{
 		Command: fmt.Sprintf(`stat -c '%%u %%g %%a' %s`, shellescape.Quote(path)),
@@ -87,7 +87,7 @@ func (l linuxBox) getPermission(ctx context.Context, path string) (p permission,
 	return
 }
 
-func (l linuxBox) reservePath(ctx context.Context, path string) (err error) {
+func (l linux) reservePath(ctx context.Context, path string) (err error) {
 	var exitError *remote.ExitError
 	cmd := fmt.Sprintf("[ ! -e %s ]", shellescape.Quote(path))
 	if err = l.exec(&remote.Cmd{Command: cmd}); errors.As(err, &exitError) {
@@ -96,12 +96,12 @@ func (l linuxBox) reservePath(ctx context.Context, path string) (err error) {
 	return
 }
 
-func (l linuxBox) mkdirp(ctx context.Context, path string) (err error) {
+func (l linux) mkdirp(ctx context.Context, path string) (err error) {
 	cmd := fmt.Sprintf(`mkdir -p %s`, shellescape.Quote(path))
 	return l.exec(&remote.Cmd{Command: cmd})
 }
 
-func (l linuxBox) cat(ctx context.Context, path string) (s string, err error) {
+func (l linux) cat(ctx context.Context, path string) (s string, err error) {
 	stdout := new(bytes.Buffer)
 	cmd := fmt.Sprintf("cat %s", shellescape.Quote(path))
 	if err = l.exec(&remote.Cmd{Command: cmd, Stdout: stdout}); err != nil {
@@ -110,12 +110,12 @@ func (l linuxBox) cat(ctx context.Context, path string) (s string, err error) {
 	return stdout.String(), nil
 }
 
-func (l linuxBox) mv(ctx context.Context, old, new string) (err error) {
+func (l linux) mv(ctx context.Context, old, new string) (err error) {
 	cmd := fmt.Sprintf(`mv %s %s`, shellescape.Quote(old), shellescape.Quote(new))
 	return l.exec(&remote.Cmd{Command: cmd})
 }
 
-func (l linuxBox) remove(ctx context.Context, path, recyclePath string) (err error) {
+func (l linux) remove(ctx context.Context, path, recyclePath string) (err error) {
 	if path == "" {
 		return
 	}

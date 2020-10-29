@@ -7,7 +7,7 @@ services:
       - SSH_ENABLE_ROOT=true
       - SSH_ENABLE_PASSWORD_AUTH=true
     volumes:
-      - ../../linuxbox/testdata/id_rsa.pub:/root/.ssh/authorized_keys:ro
+      - ../../linux/testdata/id_rsa.pub:/root/.ssh/authorized_keys:ro
       - /tmp/:/tmp/
     ports:
       - "2222:22"

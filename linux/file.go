@@ -1,4 +1,4 @@
-package linuxbox
+package linux
 
 import (
 	"fmt"
@@ -20,7 +20,7 @@ type file struct {
 	recyclePath   string
 }
 
-func (l linuxBox) readFile(ctx context.Context, path string, ignoreContent bool) (f *file, err error) {
+func (l linux) readFile(ctx context.Context, path string, ignoreContent bool) (f *file, err error) {
 	perm, err := l.getPermission(ctx, path)
 	if err != nil {
 		return
@@ -35,7 +35,7 @@ func (l linuxBox) readFile(ctx context.Context, path string, ignoreContent bool)
 	return
 }
 
-func (l linuxBox) createFile(ctx context.Context, f *file) (err error) {
+func (l linux) createFile(ctx context.Context, f *file) (err error) {
 	if f == nil {
 		return errNil
 	}
@@ -65,14 +65,14 @@ func (l linuxBox) createFile(ctx context.Context, f *file) (err error) {
 	return l.setPermission(ctx, f.path, f.permission)
 }
 
-func (l linuxBox) deleteFile(ctx context.Context, f *file) (err error) {
+func (l linux) deleteFile(ctx context.Context, f *file) (err error) {
 	if f == nil {
 		return
 	}
 	return l.remove(ctx, f.path, f.recyclePath)
 }
 
-func (l linuxBox) updateFile(ctx context.Context, old, new *file) (err error) {
+func (l linux) updateFile(ctx context.Context, old, new *file) (err error) {
 	if old == nil {
 		return l.createFile(ctx, new)
 	}

@@ -1,4 +1,4 @@
-package linuxbox
+package linux
 
 import (
 	"context"
@@ -127,7 +127,7 @@ func (handlerDirectoryResource) updateResourceData(d *directory, rd *schema.Reso
 }
 
 func (h handlerDirectoryResource) Read(ctx context.Context, rd *schema.ResourceData, i interface{}) (dg diag.Diagnostics) {
-	l := i.(linuxBox)
+	l := i.(linux)
 	d, err := l.readDirectory(ctx, cast.ToString(rd.Get(attrDirectoryPath)))
 	if err != nil && !errors.Is(err, errPathNotExist) {
 		return diag.FromErr(err)
@@ -142,7 +142,7 @@ func (h handlerDirectoryResource) Read(ctx context.Context, rd *schema.ResourceD
 }
 
 func (h handlerDirectoryResource) Create(ctx context.Context, rd *schema.ResourceData, i interface{}) (dg diag.Diagnostics) {
-	l := i.(linuxBox)
+	l := i.(linux)
 	d := h.newDirectory(rd)
 	if err := l.createDirectory(ctx, d); err != nil {
 		return diag.FromErr(err)
@@ -158,7 +158,7 @@ func (h handlerDirectoryResource) Create(ctx context.Context, rd *schema.Resourc
 }
 
 func (h handlerDirectoryResource) Update(ctx context.Context, rd *schema.ResourceData, i interface{}) (dg diag.Diagnostics) {
-	l := i.(linuxBox)
+	l := i.(linux)
 	old, new := h.newDiffedDirectory(rd)
 	err := l.updateDirectory(ctx, old, new)
 	if err != nil {
@@ -170,7 +170,7 @@ func (h handlerDirectoryResource) Update(ctx context.Context, rd *schema.Resourc
 }
 
 func (h handlerDirectoryResource) Delete(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
-	l := i.(linuxBox)
+	l := i.(linux)
 	if err := l.deleteDirectory(ctx, h.newDirectory(rd)); err != nil {
 		return diag.FromErr(err)
 	}

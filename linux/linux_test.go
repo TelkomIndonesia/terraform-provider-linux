@@ -1,4 +1,4 @@
-package linuxbox
+package linux
 
 import (
 	"testing"

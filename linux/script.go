@@ -1,4 +1,4 @@
-package linuxbox
+package linux
 
 import (
 	"bytes"
@@ -39,7 +39,7 @@ func (e env) multiline() string {
 }
 
 type script struct {
-	l linuxBox
+	l linux
 
 	workdir     string
 	env         env

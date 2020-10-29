@@ -1,4 +1,4 @@
-package linuxbox
+package linux
 
 import (
 	"context"
@@ -86,7 +86,7 @@ var schemaScriptResource = map[string]*schema.Schema{
 
 type handlerScriptResource struct{}
 
-func (h handlerScriptResource) newScript(rd *schema.ResourceData, l linuxBox, attrLifeCycle string) (s *script) {
+func (h handlerScriptResource) newScript(rd *schema.ResourceData, l linux, attrLifeCycle string) (s *script) {
 	if rd == nil {
 		return
 	}
@@ -106,7 +106,7 @@ func (h handlerScriptResource) newScript(rd *schema.ResourceData, l linuxBox, at
 	return
 }
 func (h handlerScriptResource) Read(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
-	l := i.(linuxBox)
+	l := i.(linux)
 	sc := h.newScript(rd, l, attrScriptLifecycleCommandRead)
 	res, err := sc.exec(ctx)
 	if err != nil {
@@ -123,7 +123,7 @@ func (h handlerScriptResource) Read(ctx context.Context, rd *schema.ResourceData
 }
 
 func (h handlerScriptResource) Create(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
-	l := i.(linuxBox)
+	l := i.(linux)
 	sc := h.newScript(rd, l, attrScriptLifecycleCommandCreate)
 	_, err := sc.exec(ctx)
 	if err != nil {
@@ -157,7 +157,7 @@ func (h handlerScriptResource) restoreDirtyUpdate(rd *schema.ResourceData) (err 
 }
 
 func (h handlerScriptResource) Update(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
-	l := i.(linuxBox)
+	l := i.(linux)
 	sc := h.newScript(rd, l, attrScriptLifecycleCommandUpdate)
 	oldOutput := cast.ToString(rd.Get(attrScriptOutput))
 	sc.stdin = strings.NewReader(oldOutput)
@@ -170,7 +170,7 @@ func (h handlerScriptResource) Update(ctx context.Context, rd *schema.ResourceDa
 }
 
 func (h handlerScriptResource) Delete(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
-	l := i.(linuxBox)
+	l := i.(linux)
 	sc := h.newScript(rd, l, attrScriptLifecycleCommandDelete)
 	if _, err := sc.exec(ctx); err != nil {
 		return diag.FromErr(err)

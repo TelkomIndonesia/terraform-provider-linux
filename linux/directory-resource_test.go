@@ -1,4 +1,4 @@
-package linuxbox
+package linux
 
 import (
 	"regexp"
@@ -9,8 +9,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 )
 
-func TestAccLinuxBoxDirectoryBasic(t *testing.T) {
-	path := "/tmp/linuxbox/" + acctest.RandString(8)
+func TestAccLinuxDirectoryBasic(t *testing.T) {
+	path := "/tmp/linux/" + acctest.RandString(8)
 	resource.Test(t, resource.TestCase{
 		ExternalProviders: map[string]resource.ExternalProvider{
 			"null": {},
@@ -19,18 +19,18 @@ func TestAccLinuxBoxDirectoryBasic(t *testing.T) {
 		Providers: testAccProviders,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccLinuxBoxDirectoryBasicConfig(path, path+".neverexist"),
+				Config: testAccLinuxDirectoryBasicConfig(path, path+".neverexist"),
 			},
 			{
-				Config: testAccLinuxBoxDirectoryBasicConfig(path+".new", path),
+				Config: testAccLinuxDirectoryBasicConfig(path+".new", path),
 			},
 		},
 	})
 }
 
-func testAccLinuxBoxDirectoryBasicConfig(path, pathPrev string) string {
+func testAccLinuxDirectoryBasicConfig(path, pathPrev string) string {
 	provider := heredoc.Docf(`
-		provider "linuxbox" {
+		provider "linux" {
 			host = "127.0.0.1"
 			port = 2222
 			user = "root"
@@ -67,8 +67,8 @@ func testAccLinuxBoxDirectoryBasicConfig(path, pathPrev string) string {
 		}
 	`, path, path)
 
-	linuxbox := heredoc.Docf(`
-		resource "linuxbox_directory" "basic" {
+	linux := heredoc.Docf(`
+		resource "linux_directory" "basic" {
 			depends_on = [ null_resource.destroy_checker]
 			path = "%s"
 			owner = 1001
@@ -80,10 +80,10 @@ func testAccLinuxBoxDirectoryBasicConfig(path, pathPrev string) string {
 	createChecker := heredoc.Docf(`
 		resource "null_resource" "create_checker" {
 			triggers = {
-				path = linuxbox_directory.basic.path
-				owner = linuxbox_directory.basic.owner
-				group = linuxbox_directory.basic.group
-				mode = linuxbox_directory.basic.mode
+				path = linux_directory.basic.path
+				owner = linux_directory.basic.owner
+				group = linux_directory.basic.group
+				mode = linux_directory.basic.mode
 
 				path_previous = "%s"
 			}
@@ -108,11 +108,11 @@ func testAccLinuxBoxDirectoryBasicConfig(path, pathPrev string) string {
 		}
 	`, pathPrev)
 
-	return provider + destroyChecker + linuxbox + createChecker
+	return provider + destroyChecker + linux + createChecker
 }
 
-func TestAccLinuxBoxDirectoryOverride(t *testing.T) {
-	path := "/tmp/linuxbox/" + acctest.RandString(8)
+func TestAccLinuxDirectoryOverride(t *testing.T) {
+	path := "/tmp/linux/" + acctest.RandString(8)
 	resource.Test(t, resource.TestCase{
 		ExternalProviders: map[string]resource.ExternalProvider{
 			"null": {},
@@ -121,26 +121,26 @@ func TestAccLinuxBoxDirectoryOverride(t *testing.T) {
 		Providers: testAccProviders,
 		Steps: []resource.TestStep{
 			{
-				Config:      testAccLinuxBoxDirectoryeOverrideConfig(path, path+".neverexist", false),
+				Config:      testAccLinuxDirectoryeOverrideConfig(path, path+".neverexist", false),
 				ExpectError: regexp.MustCompile(" exist"),
 			},
 			{
-				Config: testAccLinuxBoxDirectoryeOverrideConfig(path, path+".neverexist", true),
+				Config: testAccLinuxDirectoryeOverrideConfig(path, path+".neverexist", true),
 			},
 			{
-				Config:      testAccLinuxBoxDirectoryeOverrideConfig(path+".new", path, false),
+				Config:      testAccLinuxDirectoryeOverrideConfig(path+".new", path, false),
 				ExpectError: regexp.MustCompile(" exist"),
 			},
 			{
-				Config: testAccLinuxBoxDirectoryeOverrideConfig(path+".new", path, true),
+				Config: testAccLinuxDirectoryeOverrideConfig(path+".new", path, true),
 			},
 		},
 	})
 }
 
-func testAccLinuxBoxDirectoryeOverrideConfig(path, pathPrev string, overwrite bool) string {
+func testAccLinuxDirectoryeOverrideConfig(path, pathPrev string, overwrite bool) string {
 	provider := heredoc.Docf(`
-		provider "linuxbox" {
+		provider "linux" {
 			host = "127.0.0.1"
 			port = 2222
 			user = "root"
@@ -166,8 +166,8 @@ func testAccLinuxBoxDirectoryeOverrideConfig(path, pathPrev string, overwrite bo
 		}
 	`, path)
 
-	linuxbox := heredoc.Docf(`
-		resource "linuxbox_directory" "overwrite" {
+	linux := heredoc.Docf(`
+		resource "linux_directory" "overwrite" {
 			depends_on = [ null_resource.existing]
 			path = "%s"
 			owner = 1001
@@ -180,10 +180,10 @@ func testAccLinuxBoxDirectoryeOverrideConfig(path, pathPrev string, overwrite bo
 	createChecker := heredoc.Docf(`
 		resource "null_resource" "create_checker" {
 			triggers = {
-				path = linuxbox_directory.overwrite.path
-				owner = linuxbox_directory.overwrite.owner
-				group = linuxbox_directory.overwrite.group
-				mode = linuxbox_directory.overwrite.mode
+				path = linux_directory.overwrite.path
+				owner = linux_directory.overwrite.owner
+				group = linux_directory.overwrite.group
+				mode = linux_directory.overwrite.mode
 
 				path_previous = "%s"
 			}
@@ -209,11 +209,11 @@ func testAccLinuxBoxDirectoryeOverrideConfig(path, pathPrev string, overwrite bo
 		}
 	`, pathPrev)
 
-	return provider + existing + linuxbox + createChecker
+	return provider + existing + linux + createChecker
 }
 
-func TestAccLinuxBoxDirectoryRecyclePath(t *testing.T) {
-	path := "/tmp/linuxbox/" + acctest.RandString(8)
+func TestAccLinuxDirectoryRecyclePath(t *testing.T) {
+	path := "/tmp/linux/" + acctest.RandString(8)
 	resource.Test(t, resource.TestCase{
 		ExternalProviders: map[string]resource.ExternalProvider{
 			"null": {},
@@ -222,15 +222,15 @@ func TestAccLinuxBoxDirectoryRecyclePath(t *testing.T) {
 		Providers: testAccProviders,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccLinuxBoxDirectoryRecyclePathConfig(path, path+".neverexist"),
+				Config: testAccLinuxDirectoryRecyclePathConfig(path, path+".neverexist"),
 			},
 		},
 	})
 }
 
-func testAccLinuxBoxDirectoryRecyclePathConfig(path, pathPrev string) string {
+func testAccLinuxDirectoryRecyclePathConfig(path, pathPrev string) string {
 	provider := heredoc.Docf(`
-		provider "linuxbox" {
+		provider "linux" {
 			host = "127.0.0.1"
 			port = 2222
 			user = "root"
@@ -268,8 +268,8 @@ func testAccLinuxBoxDirectoryRecyclePathConfig(path, pathPrev string) string {
 		}
 	`, path)
 
-	linuxbox := heredoc.Docf(`
-		resource "linuxbox_directory" "basic" {
+	linux := heredoc.Docf(`
+		resource "linux_directory" "basic" {
 			depends_on = [ null_resource.destroy_checker]
 			path = "%s"
 			owner = 1001
@@ -282,11 +282,11 @@ func testAccLinuxBoxDirectoryRecyclePathConfig(path, pathPrev string) string {
 	createChecker := heredoc.Docf(`
 		resource "null_resource" "create_checker" {
 			triggers = {
-				path = linuxbox_directory.basic.path
-				owner = linuxbox_directory.basic.owner
-				group = linuxbox_directory.basic.group
-				mode = linuxbox_directory.basic.mode
-				recycle_path = linuxbox_directory.basic.recycle_path
+				path = linux_directory.basic.path
+				owner = linux_directory.basic.owner
+				group = linux_directory.basic.group
+				mode = linux_directory.basic.mode
+				recycle_path = linux_directory.basic.recycle_path
 
 				path_previous = "%s"
 			}
@@ -311,5 +311,5 @@ func testAccLinuxBoxDirectoryRecyclePathConfig(path, pathPrev string) string {
 		}
 	`, pathPrev)
 
-	return provider + destroyChecker + linuxbox + createChecker
+	return provider + destroyChecker + linux + createChecker
 }

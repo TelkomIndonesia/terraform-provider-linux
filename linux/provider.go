@@ -1,4 +1,4 @@
-package linuxbox
+package linux
 
 import (
 	"context"
@@ -126,7 +126,7 @@ var schemaProvider = map[string]*schema.Schema{
 		Type:        schema.TypeString,
 		Optional:    true,
 		Description: "The path used to copy scripts meant for remote execution.",
-		Default:     "/tmp/linuxbox-%RAND%.sh",
+		Default:     "/tmp/linux-%RAND%.sh",
 	},
 	attrProviderTimeout: {
 		Type:        schema.TypeString,
@@ -136,7 +136,7 @@ var schemaProvider = map[string]*schema.Schema{
 	},
 }
 
-func newLinuxBoxFromSchema(d *schema.ResourceData) (p linuxBox, err error) {
+func newLinuxFromSchema(d *schema.ResourceData) (p linux, err error) {
 	connInfo := map[string]string{
 		"type": "ssh",
 
@@ -172,14 +172,14 @@ func newLinuxBoxFromSchema(d *schema.ResourceData) (p linuxBox, err error) {
 	if err = c.Connect(nil); err != nil {
 		return
 	}
-	return linuxBox{communicator: c, connInfo: connInfo}, nil
+	return linux{communicator: c, connInfo: connInfo}, nil
 }
 
 func Provider() *schema.Provider {
 	return &schema.Provider{
 		Schema: schemaProvider,
 		ConfigureContextFunc: func(ctx context.Context, d *schema.ResourceData) (l interface{}, diags diag.Diagnostics) {
-			l, err := newLinuxBoxFromSchema(d)
+			l, err := newLinuxFromSchema(d)
 			if err != nil {
 				return nil, diag.FromErr(err)
 			}
@@ -187,9 +187,9 @@ func Provider() *schema.Provider {
 		},
 
 		ResourcesMap: map[string]*schema.Resource{
-			"linuxbox_file":      fileResource(),
-			"linuxbox_directory": directoryResource(),
-			"linuxbox_script":    scriptResource(),
+			"linux_file":      fileResource(),
+			"linux_directory": directoryResource(),
+			"linux_script":    scriptResource(),
 		},
 	}
 }

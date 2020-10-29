@@ -1,4 +1,4 @@
-package linuxbox
+package linux
 
 import (
 	"context"
@@ -160,7 +160,7 @@ func (handlerFileResource) updateResourceData(f *file, rd *schema.ResourceData) 
 }
 
 func (h handlerFileResource) Read(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
-	l := i.(linuxBox)
+	l := i.(linux)
 	f, err := l.readFile(ctx, cast.ToString(rd.Get(attrFilePath)), cast.ToBool(rd.Get(attrFileIgnoreContent)))
 	if err != nil && !errors.Is(err, errPathNotExist) {
 		return diag.FromErr(err)
@@ -175,7 +175,7 @@ func (h handlerFileResource) Read(ctx context.Context, rd *schema.ResourceData, 
 }
 
 func (h handlerFileResource) Create(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
-	l := i.(linuxBox)
+	l := i.(linux)
 	f := h.newFile(rd)
 	if err := l.createFile(ctx, f); err != nil {
 		return diag.FromErr(err)
@@ -191,7 +191,7 @@ func (h handlerFileResource) Create(ctx context.Context, rd *schema.ResourceData
 }
 
 func (h handlerFileResource) Update(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
-	l := i.(linuxBox)
+	l := i.(linux)
 	old, new := h.newDiffedFile(rd)
 	err := l.updateFile(ctx, old, new)
 	if err != nil {
@@ -203,7 +203,7 @@ func (h handlerFileResource) Update(ctx context.Context, rd *schema.ResourceData
 }
 
 func (h handlerFileResource) Delete(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
-	l := i.(linuxBox)
+	l := i.(linux)
 	if err := l.deleteFile(ctx, h.newFile(rd)); err != nil {
 		return diag.FromErr(err)
 	}
