@@ -80,13 +80,12 @@ func (l linux) updateFile(ctx context.Context, old, new *file) (err error) {
 		return l.deleteFile(ctx, old)
 	}
 
-	if !new.overwrite {
-		if err = l.reservePath(ctx, new.path); err != nil {
-			return
-		}
-	}
-
 	if old.path != new.path {
+		if !new.overwrite {
+			if err = l.reservePath(ctx, new.path); err != nil {
+				return
+			}
+		}
 		err = l.mv(ctx, old.path, new.path)
 		if err != nil {
 			return

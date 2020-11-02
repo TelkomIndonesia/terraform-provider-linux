@@ -58,14 +58,12 @@ func (l linux) updateDirectory(ctx context.Context, old, new *directory) (err er
 	if new == nil {
 		return l.deleteDirectory(ctx, old)
 	}
-
-	if !new.overwrite {
-		if err = l.reservePath(ctx, new.path); err != nil {
-			return
-		}
-	}
-
 	if old.path != new.path {
+		if !new.overwrite {
+			if err = l.reservePath(ctx, new.path); err != nil {
+				return
+			}
+		}
 		cmd := fmt.Sprintf(`sh -c '
 				OLD_DIR=%s; NEW_DIR=%s;
 				set -e

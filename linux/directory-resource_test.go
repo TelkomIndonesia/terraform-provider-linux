@@ -17,6 +17,10 @@ func TestAccLinuxDirectoryBasic(t *testing.T) {
 	}
 	conf2 := tfConf{
 		Provider:  provider,
+		Directory: conf1.Directory.Copy().With("mode", "700"),
+	}
+	conf3 := tfConf{
+		Provider:  provider,
 		Directory: tNewTFMapDirectory(),
 		Extra:     tfmap{"path_previous": conf1.Directory["path"]},
 	}
@@ -32,6 +36,9 @@ func TestAccLinuxDirectoryBasic(t *testing.T) {
 			},
 			{
 				Config: testAccLinuxDirectoryBasicConfig(t, conf2),
+			},
+			{
+				Config: testAccLinuxDirectoryBasicConfig(t, conf3),
 			},
 		},
 	})
