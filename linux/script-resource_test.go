@@ -136,12 +136,28 @@ func TestAccLinuxScriptNoUpdate(t *testing.T) {
 				"CONTENT": `"test"`,
 			},
 		},
+		Extra: tfmap{
+			"Version": "1.0.0",
+		},
 	}
 	conf2 := tfConf{
 		Provider: provider,
 		Script:   conf1.Script.Copy(),
+		Extra:    conf1.Extra.Copy().With("Version", "2.0.0"),
 	}
-	conf2.Script.Environment = conf2.Script.Environment.With("FILE", fmt.Sprintf(`"/tmp/linux/%s"`, acctest.RandString(16)))
+	conf3 := tfConf{
+		Provider: provider,
+		Script: tfScript{
+			Environment: conf2.Script.Environment.Copy().With("FILE", fmt.Sprintf(`"/tmp/linux1/%s"`, acctest.RandString(16))),
+		},
+		Extra: conf2.Extra.Copy(),
+	}
+	conf4 := tfConf{
+		Provider: provider,
+		Script:   conf2.Script.Copy(),
+		Extra:    conf2.Extra.Copy().With("Taint", `\n`),
+	}
+
 	resource.Test(t, resource.TestCase{
 		ExternalProviders: map[string]resource.ExternalProvider{
 			"null": {},
@@ -153,6 +169,13 @@ func TestAccLinuxScriptNoUpdate(t *testing.T) {
 			},
 			{
 				Config: testAccLinuxScriptNoUpdateConfig(t, conf2),
+			},
+			{
+				Config: testAccLinuxScriptNoUpdateConfig(t, conf3),
+			},
+			{
+				Config:             testAccLinuxScriptNoUpdateConfig(t, conf4),
+				ExpectNonEmptyPlan: true,
 			},
 		},
 	})
@@ -173,7 +196,7 @@ func testAccLinuxScriptNoUpdateConfig(t *testing.T, conf tfConf) (s string) {
 			        when = destroy
 			        inline = [
 			            <<-EOF
-			                [ ! -e "{{ .Script.Environment.FILE }}" ] || exit 100
+			                [ ! -e {{ .Script.Environment.FILE }} ] || exit 100
 			            EOF
 			        ]
 			    }
@@ -206,12 +229,15 @@ func testAccLinuxScriptNoUpdateConfig(t *testing.T, conf tfConf) (s string) {
 			    depends_on = [ null_resource.destroy_validator, null_resource.directory ]  
 			    lifecycle_commands {
 			        create = <<-EOF
+			            echo {{ .Extra.Version }} > /dev/null
 			            echo -n "$CONTENT" > "$FILE"
 			        EOF
 			        read = <<-EOF
-			            echo "$FILE"
+			            echo {{ .Extra.Version }} > /dev/null
+			            cat "$FILE"
 			        EOF
 			        delete = <<-EOF
+			            echo {{ .Extra.Version }} > /dev/null
 			            rm "$FILE"
 			        EOF
 			    }
@@ -221,10 +247,10 @@ func testAccLinuxScriptNoUpdateConfig(t *testing.T, conf tfConf) (s string) {
 
 			resource "null_resource" "create_validator" {
 			    triggers = {
-			        path = {{ .Script.Environment.FILE }}
-			        content = {{ .Script.Environment.CONTENT }}
+			        path = linux_script.script.environment["FILE"]
+			        content = linux_script.script.environment["CONTENT"]
 		
-			        path_compare = format("%s.compare", {{ .Script.Environment.FILE }})
+			        path_compare = "${linux_script.script.environment["FILE"]}.compare"
 			        path_previous = {{ .Extra.path_previous | default "0"}}
 			    }
 			    connection {
@@ -238,12 +264,12 @@ func testAccLinuxScriptNoUpdateConfig(t *testing.T, conf tfConf) (s string) {
 			    provisioner "remote-exec" {
 			        inline = [
 			            <<-EOF
-			                [ ! -e "${self.triggers.path_previous}"  ] || exit 102
+			                [ ! -e "${self.triggers.path_previous}"  ] || exit 101
 			
-			                cmp -s "${self.triggers.path}" "${self.triggers.path_compare}" || exit 103
-			                [ "$( stat -c %u '${self.triggers.path}' )" == "0" ] || exit 104
-			                [ "$( stat -c %g '${self.triggers.path}' )" == "0" ] || exit 105
-			                [ "$( stat -c %a '${self.triggers.path}' )" == "644" ] || exit 106
+			                cmp -s "${self.triggers.path}" "${self.triggers.path_compare}" || exit 102
+			                [ "$( stat -c %u '${self.triggers.path}' )" == "0" ] || exit 103
+			                [ "$( stat -c %g '${self.triggers.path}' )" == "0" ] || exit 104
+			                [ "$( stat -c %a '${self.triggers.path}' )" == "644" ] || exit 105
 			            EOF
 			        ]
 			    }
@@ -252,6 +278,23 @@ func testAccLinuxScriptNoUpdateConfig(t *testing.T, conf tfConf) (s string) {
 			        inline = [ "rm -f '${self.triggers.path_compare}'" ]
 			    }
 			}
+
+			{{ if .Extra.Taint -}}
+			resource "null_resource" "taint" {
+			    depends_on = [ null_resource.create_validator ]
+			    connection {
+			        type = "ssh"
+			        {{- .Provider.Serialize | nindent 8 }}
+			    }
+			    provisioner "remote-exec" {
+			        inline = [
+			            <<-EOF
+			                echo -n "{{ .Extra.Taint }}" >> '${ linux_script.script.environment["FILE"] }'
+			            EOF
+			        ]
+			    }
+			}
+			{{- end }}
 		`)
 	s, err := conf.compile(tf)
 	t.Log(s)

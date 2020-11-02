@@ -16,6 +16,10 @@ func TestAccLinuxFileBasic(t *testing.T) {
 	}
 	conf2 := tfConf{
 		Provider: provider,
+		File:     conf1.File.Copy().With("content", `"test"`),
+	}
+	conf3 := tfConf{
+		Provider: provider,
 		File:     tNewTFMapFile(),
 		Extra:    tfmap{"path_previous": conf1.File["path"]},
 	}
@@ -31,6 +35,9 @@ func TestAccLinuxFileBasic(t *testing.T) {
 			},
 			{
 				Config: testAccLinuxFileBasicConfig(t, conf2),
+			},
+			{
+				Config: testAccLinuxFileBasicConfig(t, conf3),
 			},
 		},
 	})

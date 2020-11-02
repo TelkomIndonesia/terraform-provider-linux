@@ -21,6 +21,7 @@ const (
 	attrScriptSensitiveEnvironment   = "sensitive_environment"
 	attrScriptInterpreter            = "interpreter"
 	attrScriptWorkingDirectory       = "working_directory"
+	attrScriptDirty                  = "dirty"
 	attrScriptOutput                 = "output"
 )
 
@@ -78,6 +79,11 @@ var schemaScriptResource = map[string]*schema.Schema{
 		Optional: true,
 		Default:  ".",
 	},
+	attrScriptDirty: {
+		Type:        schema.TypeBool,
+		Optional:    true,
+		DefaultFunc: func() (interface{}, error) { return false, nil },
+	},
 	attrScriptOutput: {
 		Type:     schema.TypeString,
 		Computed: true,
@@ -105,7 +111,8 @@ func (h handlerScriptResource) newScript(rd *schema.ResourceData, l linux, attrL
 	}
 	return
 }
-func (h handlerScriptResource) Read(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
+
+func (h handlerScriptResource) read(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
 	l := i.(linux)
 	sc := h.newScript(rd, l, attrScriptLifecycleCommandRead)
 	res, err := sc.exec(ctx)
@@ -117,6 +124,20 @@ func (h handlerScriptResource) Read(ctx context.Context, rd *schema.ResourceData
 		return
 	}
 	if err = rd.Set(attrScriptOutput, res); err != nil {
+		return diag.FromErr(err)
+	}
+	return
+}
+func (h handlerScriptResource) Read(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
+	old := cast.ToString(rd.Get(attrScriptOutput))
+
+	d = h.read(ctx, rd, i)
+	if d.HasError() {
+		return
+	}
+
+	new := cast.ToString(rd.Get(attrScriptOutput))
+	if err := rd.Set(attrScriptDirty, old != new); err != nil {
 		return diag.FromErr(err)
 	}
 	return
@@ -135,7 +156,7 @@ func (h handlerScriptResource) Create(ctx context.Context, rd *schema.ResourceDa
 	}
 
 	rd.SetId(id.String())
-	return h.Read(ctx, rd, i)
+	return h.read(ctx, rd, i)
 }
 
 func (h handlerScriptResource) restoreDirtyUpdate(rd *schema.ResourceData) (err error) {
@@ -166,7 +187,7 @@ func (h handlerScriptResource) Update(ctx context.Context, rd *schema.ResourceDa
 		_ = h.restoreDirtyUpdate(rd) // WARN: see https://github.com/hashicorp/terraform-plugin-sdk/issues/476
 		return diag.FromErr(err)
 	}
-	return h.Read(ctx, rd, i)
+	return h.read(ctx, rd, i)
 }
 
 func (h handlerScriptResource) Delete(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
@@ -193,12 +214,22 @@ func scriptResource() *schema.Resource {
 			if _, ok := rd.GetOk(attrScriptLifecycleCommands + ".0." + attrScriptLifecycleCommandUpdate); ok {
 				return
 			}
-			for _, k := range rd.GetChangedKeysPrefix("") {
-				root := strings.Split(k, ".")[0]
-				if root == attrScriptTriggers { // already force new
-					continue
+			for _, key := range rd.GetChangedKeysPrefix("") {
+				if strings.HasPrefix(key, attrScriptTriggers) {
+					continue // already force new
 				}
-				err = rd.ForceNew(root)
+
+				// need to remove index from map and list
+				switch {
+				case strings.HasPrefix(key, attrScriptEnvironment):
+					key = strings.Split(key, ".")[0]
+				case strings.HasPrefix(key, attrScriptSensitiveEnvironment):
+					key = strings.Split(key, ".")[0]
+				case strings.HasPrefix(key, attrScriptInterpreter):
+					key = strings.Split(key, ".")[0]
+				}
+
+				err = rd.ForceNew(key)
 				if err != nil {
 					return
 				}
