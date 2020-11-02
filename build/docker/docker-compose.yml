@@ -1,0 +1,14 @@
+version: "2.4"
+services:
+  openssh-server:
+    image: rucciva/sshd:1.3.0
+    build: .
+    environment:
+      - SSH_ENABLE_ROOT=true
+      - SSH_ENABLE_PASSWORD_AUTH=true
+    volumes:
+      - ../../linux/testdata/id_rsa.pub:/root/.ssh/authorized_keys:ro
+      - /tmp/:/tmp/
+    ports:
+      - "2222:22"
+    restart: unless-stopped
