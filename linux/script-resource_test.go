@@ -1,257 +1,260 @@
 package linux
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAccLinuxScriptBasic(t *testing.T) {
-	path := "/tmp/linux/" + acctest.RandString(8)
+	conf1 := tfConf{
+		Provider: provider,
+		Script: tfScript{
+			Environment: tfmap{
+				"FILE":    fmt.Sprintf(`"/tmp/linux/%s"`, acctest.RandString(16)),
+				"CONTENT": `"test"`,
+			},
+		},
+	}
+	conf2 := tfConf{
+		Provider: provider,
+		Script:   conf1.Script.Copy(),
+	}
+	conf2.Script.Environment = conf2.Script.Environment.With("FILE", fmt.Sprintf(`"/tmp/linux/%s"`, acctest.RandString(16)))
+
 	resource.Test(t, resource.TestCase{
 		ExternalProviders: map[string]resource.ExternalProvider{
 			"null": {},
 		},
-		PreCheck:  func() {},
 		Providers: testAccProviders,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccLinuxScriptBasicConfig(path, path+".neverexist"),
+				Config: testAccLinuxScriptBasicConfig(t, conf1),
 			},
 			{
-				Config: testAccLinuxScriptBasicConfig(path+".new", path),
+				Config: testAccLinuxScriptBasicConfig(t, conf2),
 			},
 		},
 	})
 }
 
-func testAccLinuxScriptBasicConfig(path, pathPrev string) string {
-	provider := heredoc.Docf(`
+func testAccLinuxScriptBasicConfig(t *testing.T, conf tfConf) (s string) {
+	tf := heredoc.Doc(`
 		provider "linux" {
-			host = "127.0.0.1"
-			port = 2222
-			user = "root"
-			password = "root"
+		    {{- .Provider.Serialize | nindent 4 }}
+		}
+
+		resource "null_resource" "destroy_validator" {
+		    connection {
+		        type = "ssh"
+		        {{- .Provider.Serialize | nindent 8 }}
+		    }
+		    provisioner "remote-exec" {
+		        when = destroy
+		        inline = [
+		            <<-EOF
+		                [ ! -e {{ .Script.Environment.FILE }} ] || exit 100
+		                [ -e {{ .Script.Environment.FILE }}.updated ] || exit 101
+		                rm -rf {{ .Script.Environment.FILE }}.updated
+		            EOF
+		        ]
+		    }
+		}
+
+		resource "linux_script" "script" {
+		    depends_on = [ null_resource.destroy_validator ]  
+		
+		    lifecycle_commands {
+		        create = <<-EOF
+		            mkdir -p "$(dirname "$FILE")" && echo -n "$CONTENT" > "$FILE"
+		        EOF
+		        read = <<-EOF
+		            echo "$FILE"
+		        EOF
+		        update = <<-EOF
+		            touch "$FILE".updated
+		            mv "$(cat)" "$FILE"
+		        EOF
+		        delete = <<-EOF
+		            rm "$FILE"
+		        EOF
+		    }
+		    
+		    {{ .Script.Serialize | nindent 4 }}
+		}
+
+		resource "null_resource" "create_validator" {
+		    triggers = {
+		        path = {{ .Script.Environment.FILE }}
+		        content = {{ .Script.Environment.CONTENT }}
+		
+		        path_compare = format("%s.compare", {{ .Script.Environment.FILE }})
+		        path_previous = {{ .Extra.path_previous | default "0"}}
+		    }
+		    connection {
+		        type = "ssh"
+		        {{- .Provider.Serialize | nindent 8 }}
+		    }
+		    provisioner "file" {
+		        content = self.triggers.content
+		        destination = self.triggers.path_compare
+		    }
+		    provisioner "remote-exec" {
+		        inline = [
+		            <<-EOF
+		                [ ! -e "${self.triggers.path_previous}"  ] || exit 102
+		
+		                cmp -s "${self.triggers.path}" "${self.triggers.path_compare}" || exit 103
+		                [ "$( stat -c %u '${self.triggers.path}' )" == "0" ] || exit 104
+		                [ "$( stat -c %g '${self.triggers.path}' )" == "0" ] || exit 105
+		                [ "$( stat -c %a '${self.triggers.path}' )" == "644" ] || exit 106
+		            EOF
+		        ]
+		    }
+		    provisioner "remote-exec" {
+		        when = destroy
+		        inline = [ "rm -f '${self.triggers.path_compare}'" ]
+		    }
 		}
 	`)
-
-	destroyChecker := heredoc.Docf(`
-		resource "null_resource" "destroy_checker" {
-			connection {
-				type     = "ssh"
-				host     = "127.0.0.1"
-				port 	 = 2222
-				user     = "root"
-				password = "root" 
-			}
-
-			provisioner "remote-exec" {
-				when = destroy
-				inline = [
-					<<-EOF
-						FILE='%s'
-						[ -e "$FILE".update ] || exit 10
-						rm -rf "$FILE".update
-						[ ! -e "$FILE" ] || exit 11
-					EOF
-				]
-			}
-		}
-	`, path)
-
-	linux := heredoc.Docf(`
-		locals {
-			path  = "%s"
-			content = "test"
-		} 
-		resource "linux_script" "basic" {
-			depends_on = [ null_resource.destroy_checker ]
-			lifecycle_commands {
-				create = "mkdir -p $(dirname $FILE) && echo -n '${local.content}' > $FILE"
-				read = "echo $FILE"
-				update = <<-EOF
-					OLD_FILE="$(cat)"
-					touch "$FILE".update
-					mv "$OLD_FILE" $FILE
-				EOF
-				delete = "rm $FILE"
-			}
-			environment = {
-				FILE = local.path
-			}
-		}
-	`, path)
-
-	createChecker := heredoc.Docf(`
-		resource "null_resource" "create_checker" {
-			depends_on = [ linux_script.basic ]
-			triggers = {
-				path = local.path
-				path_previous = "%s"
-				path_compare = "${local.path}.compare"
-			}
-			connection {
-				type     = "ssh"
-				host     = "127.0.0.1"
-				port 	 = 2222
-				user     = "root"
-				password = "root" 
-			}
-			provisioner "file" {
-				content      	= local.content
-				destination 	= self.triggers.path_compare
-			}
-			provisioner "remote-exec" {
-				inline 		= [
-					<<-EOF
-						[ ! -e "${self.triggers.path_previous}"  ] || exit 12
-						cmp -s "${self.triggers.path}" "${self.triggers.path_compare}" || exit 13
-					EOF
-				]
-			}
-			provisioner "remote-exec" {
-				when	= destroy
-				inline 	= [ "rm -f '${self.triggers.path_compare}'" ]
-			}
-		}
-	`, pathPrev)
-
-	return provider + destroyChecker + linux + createChecker
+	s, err := conf.compile(tf)
+	t.Log(s)
+	require.NoError(t, err, "compile template failed")
+	return
 }
 
 func TestAccLinuxScriptNoUpdate(t *testing.T) {
-	path := "/tmp/linux/" + acctest.RandString(8)
+	conf1 := tfConf{
+		Provider: provider,
+		Script: tfScript{
+			Environment: tfmap{
+				"FILE":    fmt.Sprintf(`"/tmp/linux/%s"`, acctest.RandString(16)),
+				"CONTENT": `"test"`,
+			},
+		},
+	}
+	conf2 := tfConf{
+		Provider: provider,
+		Script:   conf1.Script.Copy(),
+	}
+	conf2.Script.Environment = conf2.Script.Environment.With("FILE", fmt.Sprintf(`"/tmp/linux/%s"`, acctest.RandString(16)))
 	resource.Test(t, resource.TestCase{
 		ExternalProviders: map[string]resource.ExternalProvider{
 			"null": {},
 		},
-		PreCheck:  func() {},
 		Providers: testAccProviders,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccLinuxScriptNoUpdateConfig(path, path+".neverexist"),
+				Config: testAccLinuxScriptNoUpdateConfig(t, conf1),
 			},
 			{
-				Config: testAccLinuxScriptNoUpdateConfig(path+".new", path),
+				Config: testAccLinuxScriptNoUpdateConfig(t, conf2),
 			},
 		},
 	})
 }
 
-func testAccLinuxScriptNoUpdateConfig(path, pathPrev string) string {
-	provider := heredoc.Docf(`
-		provider "linux" {
-			host = "127.0.0.1"
-			port = 2222
-			user = "root"
-			password = "root"
-		}
-	`)
-
-	locals := heredoc.Docf(`
-		locals {
-			path  = "%s"
-			content = "test"
-			path_previous = "%s"
-		}
-	`, path, pathPrev)
-
-	destroyChecker := heredoc.Docf(`
-		resource "null_resource" "destroy_checker" {
-			connection {
-				type     = "ssh"
-				host     = "127.0.0.1"
-				port 	 = 2222
-				user     = "root"
-				password = "root" 
+func testAccLinuxScriptNoUpdateConfig(t *testing.T, conf tfConf) (s string) {
+	tf := heredoc.Doc(`
+			provider "linux" {
+			    {{- .Provider.Serialize | nindent 4 }}
+			}
+	
+			resource "null_resource" "destroy_validator" {
+			    connection {
+			        type = "ssh"
+			        {{- .Provider.Serialize | nindent 8 }}
+			    }
+			    provisioner "remote-exec" {
+			        when = destroy
+			        inline = [
+			            <<-EOF
+			                [ ! -e "{{ .Script.Environment.FILE }}" ] || exit 100
+			            EOF
+			        ]
+			    }
 			}
 
-			provisioner "remote-exec" {
-				when = destroy
-				inline = [
-					"[ ! -e '%s' ] || exit 10"
-				]
+			resource "null_resource" "directory" {
+			    connection {
+			        type = "ssh"
+			        {{- .Provider.Serialize | nindent 8 }}
+			    }
+	
+			    triggers = {
+			        directory = dirname( {{ .Script.Environment.FILE }} )
+			    }
+	
+			    provisioner "remote-exec" {
+			        inline = [
+			            "mkdir -p '${self.triggers.directory}'"
+			        ]
+			    }
+			    provisioner "remote-exec" {
+			        when = destroy
+			        inline = [
+			            "rm -rf '${self.triggers.directory}'"
+			        ]
+			    }
 			}
-		}
-	`, path)
+	
+			resource "linux_script" "script" {
+			    depends_on = [ null_resource.destroy_validator, null_resource.directory ]  
+			    lifecycle_commands {
+			        create = <<-EOF
+			            echo -n "$CONTENT" > "$FILE"
+			        EOF
+			        read = <<-EOF
+			            echo "$FILE"
+			        EOF
+			        delete = <<-EOF
+			            rm "$FILE"
+			        EOF
+			    }
+			    
+			    {{- .Script.Serialize | nindent 4 }}
+			}
 
-	directory := heredoc.Docf(`
-		resource "null_resource" "directory" {
-			connection {
-				type     = "ssh"
-				host     = "127.0.0.1"
-				port 	 = 2222
-				user     = "root"
-				password = "root" 
+			resource "null_resource" "create_validator" {
+			    triggers = {
+			        path = {{ .Script.Environment.FILE }}
+			        content = {{ .Script.Environment.CONTENT }}
+		
+			        path_compare = format("%s.compare", {{ .Script.Environment.FILE }})
+			        path_previous = {{ .Extra.path_previous | default "0"}}
+			    }
+			    connection {
+			        type = "ssh"
+			        {{- .Provider.Serialize | nindent 8 }}
+			    }
+			    provisioner "file" {
+			        content = self.triggers.content
+			        destination = self.triggers.path_compare
+			    }
+			    provisioner "remote-exec" {
+			        inline = [
+			            <<-EOF
+			                [ ! -e "${self.triggers.path_previous}"  ] || exit 102
+			
+			                cmp -s "${self.triggers.path}" "${self.triggers.path_compare}" || exit 103
+			                [ "$( stat -c %u '${self.triggers.path}' )" == "0" ] || exit 104
+			                [ "$( stat -c %g '${self.triggers.path}' )" == "0" ] || exit 105
+			                [ "$( stat -c %a '${self.triggers.path}' )" == "644" ] || exit 106
+			            EOF
+			        ]
+			    }
+			    provisioner "remote-exec" {
+			        when = destroy
+			        inline = [ "rm -f '${self.triggers.path_compare}'" ]
+			    }
 			}
-
-			triggers = {
-				directory = dirname(local.path)
-			}
-
-			provisioner "remote-exec" {
-				inline = [
-					"mkdir -p '${self.triggers.directory}'"
-				]
-			}
-			provisioner "remote-exec" {
-				when = destroy
-				inline = [
-					"rm -rf '${self.triggers.directory}'"
-				]
-			}
-		}
-	`)
-
-	linux := heredoc.Doc(`
-		resource "linux_script" "no_update" {
-			depends_on = [ null_resource.destroy_checker, null_resource.directory ]
-			lifecycle_commands {
-				create = "echo -n '${local.content}' > $FILE"
-				read = "echo $FILE"
-				delete = "rm $FILE"
-			}
-			environment = {
-				FILE = local.path
-			}
-		}
-	`)
-
-	createChecker := heredoc.Docf(`
-		resource "null_resource" "create_checker" {
-			depends_on = [ linux_script.no_update ]
-			triggers = {
-				path = local.path
-				path_previous = local.path_previous
-				path_compare = "${local.path}.compare"
-			}
-			connection {
-				type     = "ssh"
-				host     = "127.0.0.1"
-				port 	 = 2222
-				user     = "root"
-				password = "root" 
-			}
-			provisioner "file" {
-				content      	= local.content
-				destination 	= self.triggers.path_compare
-			}
-			provisioner "remote-exec" {
-				inline 		= [
-					<<-EOF
-						[ ! -e "${self.triggers.path_previous}"  ] || exit 12
-						cmp -s "${self.triggers.path}" "${self.triggers.path_compare}" || exit 13
-					EOF
-				]
-			}
-			provisioner "remote-exec" {
-				when	= destroy
-				inline 	= [ "rm -f '${self.triggers.path_compare}'" ]
-			}
-		}
-	`)
-
-	return provider + locals + destroyChecker + directory + linux + createChecker
+		`)
+	s, err := conf.compile(tf)
+	t.Log(s)
+	require.NoError(t, err, "compile template failed")
+	return
 }

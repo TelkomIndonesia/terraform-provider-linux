@@ -6,6 +6,12 @@ import (
 
 var testAccProviders map[string]*schema.Provider
 var testAccProvider *schema.Provider
+var provider = tfmap{
+	"host":     `"127.0.0.1"`,
+	"port":     `"2222"`,
+	"user":     `"root"`,
+	"password": `"root"`,
+}
 
 func init() {
 	testAccProvider = Provider()

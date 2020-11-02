@@ -47,7 +47,7 @@ var schemaFileResource = map[string]*schema.Schema{
 	attrFileMode: {
 		Type:     schema.TypeString,
 		Optional: true,
-		Default:  "755",
+		Default:  "644",
 	},
 	attrFileIgnoreContent: {
 		Type:        schema.TypeBool,
