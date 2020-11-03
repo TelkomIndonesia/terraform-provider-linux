@@ -159,8 +159,8 @@ func (handlerFileResource) updateResourceData(f *file, rd *schema.ResourceData) 
 	return
 }
 
-func (h handlerFileResource) Read(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
-	l := i.(linux)
+func (h handlerFileResource) Read(ctx context.Context, rd *schema.ResourceData, meta interface{}) (d diag.Diagnostics) {
+	l := meta.(*linux)
 	f, err := l.readFile(ctx, cast.ToString(rd.Get(attrFilePath)), cast.ToBool(rd.Get(attrFileIgnoreContent)))
 	if err != nil && !errors.Is(err, errPathNotExist) {
 		return diag.FromErr(err)
@@ -174,8 +174,8 @@ func (h handlerFileResource) Read(ctx context.Context, rd *schema.ResourceData, 
 	return
 }
 
-func (h handlerFileResource) Create(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
-	l := i.(linux)
+func (h handlerFileResource) Create(ctx context.Context, rd *schema.ResourceData, meta interface{}) (d diag.Diagnostics) {
+	l := meta.(*linux)
 	f := h.newFile(rd)
 	if err := l.createFile(ctx, f); err != nil {
 		return diag.FromErr(err)
@@ -187,11 +187,11 @@ func (h handlerFileResource) Create(ctx context.Context, rd *schema.ResourceData
 	}
 
 	rd.SetId(id.String())
-	return h.Read(ctx, rd, i)
+	return h.Read(ctx, rd, meta)
 }
 
-func (h handlerFileResource) Update(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
-	l := i.(linux)
+func (h handlerFileResource) Update(ctx context.Context, rd *schema.ResourceData, meta interface{}) (d diag.Diagnostics) {
+	l := meta.(*linux)
 	old, new := h.newDiffedFile(rd)
 	err := l.updateFile(ctx, old, new)
 	if err != nil {
@@ -199,11 +199,11 @@ func (h handlerFileResource) Update(ctx context.Context, rd *schema.ResourceData
 		return diag.FromErr(err)
 	}
 
-	return h.Read(ctx, rd, i)
+	return h.Read(ctx, rd, meta)
 }
 
-func (h handlerFileResource) Delete(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
-	l := i.(linux)
+func (h handlerFileResource) Delete(ctx context.Context, rd *schema.ResourceData, meta interface{}) (d diag.Diagnostics) {
+	l := meta.(*linux)
 	if err := l.deleteFile(ctx, h.newFile(rd)); err != nil {
 		return diag.FromErr(err)
 	}

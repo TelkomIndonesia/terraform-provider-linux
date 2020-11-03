@@ -5,13 +5,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/alessio/shellescape"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform/communicator/remote"
 	"github.com/hashicorp/terraform/communicator/ssh"
+	"github.com/hashicorp/terraform/terraform"
 )
 
 var (
@@ -20,15 +24,72 @@ var (
 )
 
 type linux struct {
-	communicator *ssh.Communicator
-	connInfo     map[string]string
+	conn    *ssh.Communicator
+	oneConn sync.Once
+
+	connInfo map[string]string
 }
 
-func (p linux) exec(cmd *remote.Cmd) (err error) {
-	if err = p.communicator.Start(cmd); err != nil {
+func (l *linux) communicators(ctx context.Context) (c *ssh.Communicator, err error) {
+	init := func() *resource.RetryError {
+		c, err := ssh.NewNoPty(&terraform.InstanceState{Ephemeral: terraform.EphemeralState{
+			ConnInfo: l.connInfo,
+		}})
+		if err != nil {
+			return resource.NonRetryableError(err)
+		}
+		if err = c.Connect(nil); err != nil {
+			return resource.RetryableError(err)
+		}
+		l.conn = c
+		return nil
+	}
+	l.oneConn.Do(func() {
+		err = resource.RetryContext(ctx, 5*time.Minute, init)
+		if err != nil {
+			return
+		}
+	})
+
+	if l.conn == nil {
+		return nil, fmt.Errorf("SSH connection can not be established. See previous error")
+	}
+	return l.conn, nil
+}
+
+func (l *linux) exec(ctx context.Context, cmd *remote.Cmd) (err error) {
+	c, err := l.communicators(ctx)
+	if err != nil {
+		return
+	}
+	if err = c.Start(cmd); err != nil {
 		return
 	}
 	return cmd.Wait()
+}
+
+func (l *linux) upload(ctx context.Context, path string, input io.Reader) (err error) {
+	c, err := l.communicators(ctx)
+	if err != nil {
+		return
+	}
+	return c.Upload(path, input)
+}
+
+func (l *linux) uploadScript(ctx context.Context, path string, input io.Reader) (err error) {
+	c, err := l.communicators(ctx)
+	if err != nil {
+		return
+	}
+	return c.UploadScript(path, input)
+}
+
+func (l *linux) scriptPath(ctx context.Context) string {
+	c, err := l.communicators(ctx)
+	if err != nil {
+		return ""
+	}
+	return c.ScriptPath()
 }
 
 type permission struct {
@@ -37,20 +98,20 @@ type permission struct {
 	mode  string
 }
 
-func (l linux) setPermission(ctx context.Context, path string, p permission) (err error) {
+func (l *linux) setPermission(ctx context.Context, path string, p permission) (err error) {
 	pathSafe := shellescape.Quote(path)
 	cmd := fmt.Sprintf(`sh -c "chown %d:%d %s && chmod %s %s"`,
 		p.owner, p.group, pathSafe, p.mode, pathSafe)
-	return l.exec(&remote.Cmd{Command: cmd})
+	return l.exec(ctx, &remote.Cmd{Command: cmd})
 }
 
-func (l linux) getPermission(ctx context.Context, path string) (p permission, err error) {
+func (l *linux) getPermission(ctx context.Context, path string) (p permission, err error) {
 	stdout := new(bytes.Buffer)
 	cmd := remote.Cmd{
 		Command: fmt.Sprintf(`stat -c '%%u %%g %%a' %s`, shellescape.Quote(path)),
 		Stdout:  stdout,
 	}
-	err = l.exec(&cmd)
+	err = l.exec(ctx, &cmd)
 	var exitError *remote.ExitError
 	if errors.As(err, &exitError) {
 		err = errPathNotExist
@@ -87,35 +148,35 @@ func (l linux) getPermission(ctx context.Context, path string) (p permission, er
 	return
 }
 
-func (l linux) reservePath(ctx context.Context, path string) (err error) {
+func (l *linux) reservePath(ctx context.Context, path string) (err error) {
 	var exitError *remote.ExitError
 	cmd := fmt.Sprintf("[ ! -e %s ]", shellescape.Quote(path))
-	if err = l.exec(&remote.Cmd{Command: cmd}); errors.As(err, &exitError) {
+	if err = l.exec(ctx, &remote.Cmd{Command: cmd}); errors.As(err, &exitError) {
 		return fmt.Errorf("path '%s' exist", path)
 	}
 	return
 }
 
-func (l linux) mkdirp(ctx context.Context, path string) (err error) {
+func (l *linux) mkdirp(ctx context.Context, path string) (err error) {
 	cmd := fmt.Sprintf(`mkdir -p %s`, shellescape.Quote(path))
-	return l.exec(&remote.Cmd{Command: cmd})
+	return l.exec(ctx, &remote.Cmd{Command: cmd})
 }
 
-func (l linux) cat(ctx context.Context, path string) (s string, err error) {
+func (l *linux) cat(ctx context.Context, path string) (s string, err error) {
 	stdout := new(bytes.Buffer)
 	cmd := fmt.Sprintf("cat %s", shellescape.Quote(path))
-	if err = l.exec(&remote.Cmd{Command: cmd, Stdout: stdout}); err != nil {
+	if err = l.exec(ctx, &remote.Cmd{Command: cmd, Stdout: stdout}); err != nil {
 		return
 	}
 	return stdout.String(), nil
 }
 
-func (l linux) mv(ctx context.Context, old, new string) (err error) {
+func (l *linux) mv(ctx context.Context, old, new string) (err error) {
 	cmd := fmt.Sprintf(`mv %s %s`, shellescape.Quote(old), shellescape.Quote(new))
-	return l.exec(&remote.Cmd{Command: cmd})
+	return l.exec(ctx, &remote.Cmd{Command: cmd})
 }
 
-func (l linux) remove(ctx context.Context, path, recyclePath string) (err error) {
+func (l *linux) remove(ctx context.Context, path, recyclePath string) (err error) {
 	if path == "" {
 		return
 	}
@@ -128,5 +189,5 @@ func (l linux) remove(ctx context.Context, path, recyclePath string) (err error)
 	} else {
 		cmd = fmt.Sprintf(`sh -c "[ ! -e %s ] || rm -rf %s"`, path, path)
 	}
-	return l.exec(&remote.Cmd{Command: cmd})
+	return l.exec(ctx, &remote.Cmd{Command: cmd})
 }

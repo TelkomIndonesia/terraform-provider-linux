@@ -20,7 +20,7 @@ type file struct {
 	recyclePath   string
 }
 
-func (l linux) readFile(ctx context.Context, path string, ignoreContent bool) (f *file, err error) {
+func (l *linux) readFile(ctx context.Context, path string, ignoreContent bool) (f *file, err error) {
 	perm, err := l.getPermission(ctx, path)
 	if err != nil {
 		return
@@ -35,7 +35,7 @@ func (l linux) readFile(ctx context.Context, path string, ignoreContent bool) (f
 	return
 }
 
-func (l linux) createFile(ctx context.Context, f *file) (err error) {
+func (l *linux) createFile(ctx context.Context, f *file) (err error) {
 	if f == nil {
 		return errNil
 	}
@@ -53,10 +53,10 @@ func (l linux) createFile(ctx context.Context, f *file) (err error) {
 
 	switch f.ignoreContent {
 	case false:
-		err = l.communicator.Upload(f.path, strings.NewReader(f.content))
+		err = l.upload(ctx, f.path, strings.NewReader(f.content))
 	case true:
 		pathSafe := shellescape.Quote(f.path)
-		err = l.exec(&remote.Cmd{Command: fmt.Sprintf(`sh -c "touch %s && [ -f %s ]"`, pathSafe, pathSafe)})
+		err = l.exec(ctx, &remote.Cmd{Command: fmt.Sprintf(`sh -c "touch %s && [ -f %s ]"`, pathSafe, pathSafe)})
 	}
 	if err != nil {
 		return
@@ -65,14 +65,14 @@ func (l linux) createFile(ctx context.Context, f *file) (err error) {
 	return l.setPermission(ctx, f.path, f.permission)
 }
 
-func (l linux) deleteFile(ctx context.Context, f *file) (err error) {
+func (l *linux) deleteFile(ctx context.Context, f *file) (err error) {
 	if f == nil {
 		return
 	}
 	return l.remove(ctx, f.path, f.recyclePath)
 }
 
-func (l linux) updateFile(ctx context.Context, old, new *file) (err error) {
+func (l *linux) updateFile(ctx context.Context, old, new *file) (err error) {
 	if old == nil {
 		return l.createFile(ctx, new)
 	}

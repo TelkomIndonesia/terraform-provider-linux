@@ -126,8 +126,8 @@ func (handlerDirectoryResource) updateResourceData(d *directory, rd *schema.Reso
 	return
 }
 
-func (h handlerDirectoryResource) Read(ctx context.Context, rd *schema.ResourceData, i interface{}) (dg diag.Diagnostics) {
-	l := i.(linux)
+func (h handlerDirectoryResource) Read(ctx context.Context, rd *schema.ResourceData, meta interface{}) (dg diag.Diagnostics) {
+	l := meta.(*linux)
 	d, err := l.readDirectory(ctx, cast.ToString(rd.Get(attrDirectoryPath)))
 	if err != nil && !errors.Is(err, errPathNotExist) {
 		return diag.FromErr(err)
@@ -141,8 +141,8 @@ func (h handlerDirectoryResource) Read(ctx context.Context, rd *schema.ResourceD
 	return
 }
 
-func (h handlerDirectoryResource) Create(ctx context.Context, rd *schema.ResourceData, i interface{}) (dg diag.Diagnostics) {
-	l := i.(linux)
+func (h handlerDirectoryResource) Create(ctx context.Context, rd *schema.ResourceData, meta interface{}) (dg diag.Diagnostics) {
+	l := meta.(*linux)
 	d := h.newDirectory(rd)
 	if err := l.createDirectory(ctx, d); err != nil {
 		return diag.FromErr(err)
@@ -154,11 +154,11 @@ func (h handlerDirectoryResource) Create(ctx context.Context, rd *schema.Resourc
 	}
 
 	rd.SetId(id.String())
-	return h.Read(ctx, rd, i)
+	return h.Read(ctx, rd, meta)
 }
 
-func (h handlerDirectoryResource) Update(ctx context.Context, rd *schema.ResourceData, i interface{}) (dg diag.Diagnostics) {
-	l := i.(linux)
+func (h handlerDirectoryResource) Update(ctx context.Context, rd *schema.ResourceData, meta interface{}) (dg diag.Diagnostics) {
+	l := meta.(*linux)
 	old, new := h.newDiffedDirectory(rd)
 	err := l.updateDirectory(ctx, old, new)
 	if err != nil {
@@ -166,11 +166,11 @@ func (h handlerDirectoryResource) Update(ctx context.Context, rd *schema.Resourc
 		return diag.FromErr(err)
 	}
 
-	return h.Read(ctx, rd, i)
+	return h.Read(ctx, rd, meta)
 }
 
-func (h handlerDirectoryResource) Delete(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
-	l := i.(linux)
+func (h handlerDirectoryResource) Delete(ctx context.Context, rd *schema.ResourceData, meta interface{}) (d diag.Diagnostics) {
+	l := meta.(*linux)
 	if err := l.deleteDirectory(ctx, h.newDirectory(rd)); err != nil {
 		return diag.FromErr(err)
 	}
