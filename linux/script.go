@@ -39,7 +39,7 @@ func (e env) multiline() string {
 }
 
 type script struct {
-	l linux
+	l *linux
 
 	workdir     string
 	env         env
@@ -50,8 +50,8 @@ type script struct {
 }
 
 func (sc *script) exec(ctx context.Context) (res string, err error) {
-	path := shellescape.Quote(sc.l.communicator.ScriptPath())
-	err = sc.l.communicator.UploadScript(path, strings.NewReader(sc.body))
+	path := shellescape.Quote(sc.l.scriptPath(ctx))
+	err = sc.l.uploadScript(ctx, path, strings.NewReader(sc.body))
 	if err != nil {
 		return
 	}
@@ -60,7 +60,7 @@ func (sc *script) exec(ctx context.Context) (res string, err error) {
 	cmd := sc.env.inline() + " " + shellescape.QuoteCommand(sc.interpreter) + " " + path
 	cmd = fmt.Sprintf(`sh -c 'cd %s && %s'`, shellescape.Quote(sc.workdir), cmd)
 	stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
-	err = sc.l.exec(
+	err = sc.l.exec(ctx,
 		&remote.Cmd{
 			Command: cmd,
 			Stdin:   sc.stdin,

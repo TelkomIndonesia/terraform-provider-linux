@@ -10,12 +10,12 @@ require (
 	github.com/alessio/shellescape v1.3.0
 	github.com/google/uuid v1.1.2
 	github.com/hashicorp/terraform v0.13.5
-	github.com/hashicorp/terraform-plugin-sdk/v2 v2.1.0
+	github.com/hashicorp/terraform-plugin-sdk/v2 v2.2.0
 	github.com/huandu/xstrings v1.3.2 // indirect
 	github.com/spf13/cast v1.3.1
-	github.com/stretchr/testify v1.4.0
+	github.com/stretchr/testify v1.6.1
 	go.uber.org/zap v1.16.0
-	golang.org/x/net v0.0.0-20201027133719-8eef5233e2a1
+	golang.org/x/net v0.0.0-20201031054903-ff519b6c9102
 )
 
 replace github.com/hashicorp/terraform => ./internal/workaround/hashicorp/terraform

@@ -92,7 +92,7 @@ var schemaScriptResource = map[string]*schema.Schema{
 
 type handlerScriptResource struct{}
 
-func (h handlerScriptResource) newScript(rd *schema.ResourceData, l linux, attrLifeCycle string) (s *script) {
+func (h handlerScriptResource) newScript(rd *schema.ResourceData, l *linux, attrLifeCycle string) (s *script) {
 	if rd == nil {
 		return
 	}
@@ -112,8 +112,7 @@ func (h handlerScriptResource) newScript(rd *schema.ResourceData, l linux, attrL
 	return
 }
 
-func (h handlerScriptResource) read(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
-	l := i.(linux)
+func (h handlerScriptResource) read(ctx context.Context, rd *schema.ResourceData, l *linux) (d diag.Diagnostics) {
 	sc := h.newScript(rd, l, attrScriptLifecycleCommandRead)
 	res, err := sc.exec(ctx)
 	if err != nil {
@@ -128,10 +127,10 @@ func (h handlerScriptResource) read(ctx context.Context, rd *schema.ResourceData
 	}
 	return
 }
-func (h handlerScriptResource) Read(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
+func (h handlerScriptResource) Read(ctx context.Context, rd *schema.ResourceData, meta interface{}) (d diag.Diagnostics) {
 	old := cast.ToString(rd.Get(attrScriptOutput))
 
-	d = h.read(ctx, rd, i)
+	d = h.read(ctx, rd, meta.(*linux))
 	if d.HasError() {
 		return
 	}
@@ -143,8 +142,8 @@ func (h handlerScriptResource) Read(ctx context.Context, rd *schema.ResourceData
 	return
 }
 
-func (h handlerScriptResource) Create(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
-	l := i.(linux)
+func (h handlerScriptResource) Create(ctx context.Context, rd *schema.ResourceData, meta interface{}) (d diag.Diagnostics) {
+	l := meta.(*linux)
 	sc := h.newScript(rd, l, attrScriptLifecycleCommandCreate)
 	_, err := sc.exec(ctx)
 	if err != nil {
@@ -156,7 +155,7 @@ func (h handlerScriptResource) Create(ctx context.Context, rd *schema.ResourceDa
 	}
 
 	rd.SetId(id.String())
-	return h.read(ctx, rd, i)
+	return h.read(ctx, rd, l)
 }
 
 func (h handlerScriptResource) restoreDirtyUpdate(rd *schema.ResourceData) (err error) {
@@ -177,8 +176,8 @@ func (h handlerScriptResource) restoreDirtyUpdate(rd *schema.ResourceData) (err 
 	return
 }
 
-func (h handlerScriptResource) Update(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
-	l := i.(linux)
+func (h handlerScriptResource) Update(ctx context.Context, rd *schema.ResourceData, meta interface{}) (d diag.Diagnostics) {
+	l := meta.(*linux)
 	sc := h.newScript(rd, l, attrScriptLifecycleCommandUpdate)
 	oldOutput := cast.ToString(rd.Get(attrScriptOutput))
 	sc.stdin = strings.NewReader(oldOutput)
@@ -187,11 +186,11 @@ func (h handlerScriptResource) Update(ctx context.Context, rd *schema.ResourceDa
 		_ = h.restoreDirtyUpdate(rd) // WARN: see https://github.com/hashicorp/terraform-plugin-sdk/issues/476
 		return diag.FromErr(err)
 	}
-	return h.read(ctx, rd, i)
+	return h.read(ctx, rd, l)
 }
 
-func (h handlerScriptResource) Delete(ctx context.Context, rd *schema.ResourceData, i interface{}) (d diag.Diagnostics) {
-	l := i.(linux)
+func (h handlerScriptResource) Delete(ctx context.Context, rd *schema.ResourceData, meta interface{}) (d diag.Diagnostics) {
+	l := meta.(*linux)
 	sc := h.newScript(rd, l, attrScriptLifecycleCommandDelete)
 	if _, err := sc.exec(ctx); err != nil {
 		return diag.FromErr(err)
@@ -207,7 +206,7 @@ func scriptResource() *schema.Resource {
 		ReadContext:   h.Read,
 		UpdateContext: h.Update,
 		DeleteContext: h.Delete,
-		CustomizeDiff: func(c context.Context, rd *schema.ResourceDiff, i interface{}) (err error) {
+		CustomizeDiff: func(c context.Context, rd *schema.ResourceDiff, meta interface{}) (err error) {
 			if rd.Id() == "" {
 				return
 			}

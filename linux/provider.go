@@ -2,11 +2,10 @@ package linux
 
 import (
 	"context"
+	"sync"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"github.com/hashicorp/terraform/communicator/ssh"
-	"github.com/hashicorp/terraform/terraform"
 	"github.com/spf13/cast"
 )
 
@@ -136,7 +135,7 @@ var schemaProvider = map[string]*schema.Schema{
 	},
 }
 
-func newLinuxFromSchema(d *schema.ResourceData) (p linux, err error) {
+func newLinuxFromSchema(d *schema.ResourceData) (l *linux, err error) {
 	connInfo := map[string]string{
 		"type": "ssh",
 
@@ -163,16 +162,7 @@ func newLinuxFromSchema(d *schema.ResourceData) (p linux, err error) {
 		attrProviderScriptPath: cast.ToString(d.Get(attrProviderScriptPath)),
 		attrProviderTimeout:    cast.ToString(d.Get(attrProviderTimeout)),
 	}
-	c, err := ssh.NewNoPty(&terraform.InstanceState{Ephemeral: terraform.EphemeralState{
-		ConnInfo: connInfo,
-	}})
-	if err != nil {
-		return
-	}
-	if err = c.Connect(nil); err != nil {
-		return
-	}
-	return linux{communicator: c, connInfo: connInfo}, nil
+	return &linux{connInfo: connInfo, oneConn: sync.Once{}}, nil
 }
 
 func Provider() *schema.Provider {
