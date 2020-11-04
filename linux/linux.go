@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"strconv"
 	"strings"
 	"sync"
@@ -24,41 +25,51 @@ var (
 )
 
 type linux struct {
-	conn    *ssh.Communicator
-	oneConn sync.Once
-
 	connInfo map[string]string
+
+	comm     *ssh.Communicator
+	commErr  error
+	commOnce sync.Once
 }
 
-func (l *linux) communicators(ctx context.Context) (c *ssh.Communicator, err error) {
-	init := func() *resource.RetryError {
-		c, err := ssh.NewNoPty(&terraform.InstanceState{Ephemeral: terraform.EphemeralState{
-			ConnInfo: l.connInfo,
-		}})
-		if err != nil {
-			return resource.NonRetryableError(err)
-		}
-		if err = c.Connect(nil); err != nil {
-			return resource.RetryableError(err)
-		}
-		l.conn = c
-		return nil
+func (l *linux) init(ctx context.Context) error {
+	l.comm, l.commErr = ssh.NewNoPty(&terraform.InstanceState{Ephemeral: terraform.EphemeralState{
+		ConnInfo: l.connInfo,
+	}})
+	if l.commErr != nil {
+		return l.commErr
 	}
-	l.oneConn.Do(func() {
-		err = resource.RetryContext(ctx, 5*time.Minute, init)
-		if err != nil {
-			return
+
+	l.commErr = l.comm.Connect(nil)
+	return l.commErr
+}
+
+func (l *linux) communicator(ctx context.Context) (*ssh.Communicator, error) {
+	l.commOnce.Do(func() {
+		err := resource.RetryContext(ctx, 5*time.Minute, func() *resource.RetryError {
+			var errNet net.Error
+			switch err := l.init(ctx); {
+			default:
+				return nil
+
+			case errors.As(err, &errNet):
+				return resource.RetryableError(errNet)
+
+			case err != nil:
+				return resource.NonRetryableError(err)
+			}
+		})
+
+		if l.commErr == nil {
+			l.commErr = err
 		}
 	})
 
-	if l.conn == nil {
-		return nil, fmt.Errorf("SSH connection can not be established. See previous error")
-	}
-	return l.conn, nil
+	return l.comm, l.commErr
 }
 
 func (l *linux) exec(ctx context.Context, cmd *remote.Cmd) (err error) {
-	c, err := l.communicators(ctx)
+	c, err := l.communicator(ctx)
 	if err != nil {
 		return
 	}
@@ -69,7 +80,7 @@ func (l *linux) exec(ctx context.Context, cmd *remote.Cmd) (err error) {
 }
 
 func (l *linux) upload(ctx context.Context, path string, input io.Reader) (err error) {
-	c, err := l.communicators(ctx)
+	c, err := l.communicator(ctx)
 	if err != nil {
 		return
 	}
@@ -77,7 +88,7 @@ func (l *linux) upload(ctx context.Context, path string, input io.Reader) (err e
 }
 
 func (l *linux) uploadScript(ctx context.Context, path string, input io.Reader) (err error) {
-	c, err := l.communicators(ctx)
+	c, err := l.communicator(ctx)
 	if err != nil {
 		return
 	}
@@ -85,7 +96,7 @@ func (l *linux) uploadScript(ctx context.Context, path string, input io.Reader) 
 }
 
 func (l *linux) scriptPath(ctx context.Context) string {
-	c, err := l.communicators(ctx)
+	c, err := l.communicator(ctx)
 	if err != nil {
 		return ""
 	}

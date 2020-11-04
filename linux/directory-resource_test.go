@@ -10,26 +10,23 @@ import (
 )
 
 func TestAccLinuxDirectoryBasic(t *testing.T) {
-
 	conf1 := tfConf{
-		Provider:  provider,
+		Provider:  testAccProvider,
 		Directory: tNewTFMapDirectory().Without("owner", "group", "mode"),
 	}
 	conf2 := tfConf{
-		Provider:  provider,
+		Provider:  testAccProvider,
 		Directory: conf1.Directory.Copy().With("mode", "700"),
 	}
 	conf3 := tfConf{
-		Provider:  provider,
+		Provider:  testAccProvider,
 		Directory: tNewTFMapDirectory(),
 		Extra:     tfmap{"path_previous": conf1.Directory["path"]},
 	}
 
 	resource.Test(t, resource.TestCase{
-		ExternalProviders: map[string]resource.ExternalProvider{
-			"null": {},
-		},
-		Providers: testAccProviders,
+		ExternalProviders: map[string]resource.ExternalProvider{"null": {}},
+		Providers:         testAccProviders,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccLinuxDirectoryBasicConfig(t, conf1),
@@ -54,19 +51,19 @@ func testAccLinuxDirectoryBasicConfig(t *testing.T, conf tfConf) (s string) {
 		    connection {
 		        type = "ssh"
 		        {{- .Provider.Serialize | nindent 8 }}
-			}
-			provisioner "remote-exec" {
-				inline = [
-					<<-EOF
-						rm -rf {{ .Directory.path }} || true
-					EOF
-				]
-			}
+		    }
+		    provisioner "remote-exec" {
+		        inline = [
+		            <<-EOF
+		                rm -rf {{ .Directory.path }} || true
+		            EOF
+		        ]
+		    }
 		    provisioner "remote-exec" {
 		        when = destroy
 		        inline = [
 		            <<-EOF
-		            [ ! -e {{ .Directory.path }} ] || exit 100
+		                [ ! -e {{ .Directory.path }} ] || exit 100
 		            EOF
 		        ]
 		    }
@@ -76,6 +73,22 @@ func testAccLinuxDirectoryBasicConfig(t *testing.T, conf tfConf) (s string) {
 		    depends_on = [ null_resource.destroy_validator ]  
 		
 		    {{- .Directory.Serialize | nindent 4 }}
+		}
+
+		resource "null_resource" "file" {
+		    triggers = {
+		        name = "exist"
+		        content = "i need to exist"
+		    }
+		    
+		    connection {
+		        type = "ssh"
+		        {{- .Provider.Serialize | nindent 8 }}
+		    }
+		    provisioner "file" {
+		        content = self.triggers["content"]
+		        destination = "${linux_directory.directory.path}/${self.triggers["name"]}"
+		    }
 		}
 
 		resource "null_resource" "create_validator" {
@@ -93,12 +106,13 @@ func testAccLinuxDirectoryBasicConfig(t *testing.T, conf tfConf) (s string) {
 		    provisioner "remote-exec" {
 		        inline = [
 		            <<-EOF
-		                [ ! -e '${self.triggers.path_previous}' ] || exit 101
-		                [ -d '${self.triggers.path}' ] || exit 102
+		                [ ! -e '${self.triggers["path_previous"]}' ] || exit 101
+		                [ -d '${self.triggers["path"]}' ] || exit 102
+		                [ "$(cat '${self.triggers["path"]}/${null_resource.file.triggers["name"]}')" == "${null_resource.file.triggers["content"]}" ] || exit 103
 		
-		                [ "$( stat -c %u '${self.triggers.path}' )" == "{{ .Directory.owner | default 0 }}" ] || exit 103
-		                [ "$( stat -c %g '${self.triggers.path}' )" == "{{ .Directory.group | default 0 }}" ] || exit 104
-		                [ "$( stat -c %a '${self.triggers.path}' )" == {{ .Directory.mode | default "755" }} ] || exit 105
+		                [ "$( stat -c %u '${self.triggers["path"]}' )" == "{{ .Directory.owner | default 0 }}" ] || exit 104
+		                [ "$( stat -c %g '${self.triggers["path"]}' )" == "{{ .Directory.group | default 0 }}" ] || exit 105
+		                [ "$( stat -c %a '${self.triggers["path"]}' )" == {{ .Directory.mode | default "755" }} ] || exit 106
 		            EOF
 		        ]
 		    }
@@ -112,28 +126,27 @@ func testAccLinuxDirectoryBasicConfig(t *testing.T, conf tfConf) (s string) {
 
 func TestAccLinuxDirectoryOverride(t *testing.T) {
 	conf1 := tfConf{
-		Provider:  provider,
+		Provider:  testAccProvider,
 		Directory: tNewTFMapDirectory(),
 	}
 	conf2 := tfConf{
-		Provider:  provider,
+		Provider:  testAccProvider,
 		Directory: conf1.Directory.Copy().With("overwrite", "true"),
 	}
 	conf3 := tfConf{
-		Provider:  provider,
+		Provider:  testAccProvider,
 		Directory: tNewTFMapDirectory(),
 		Extra:     tfmap{"path_previous": conf1.Directory["path"]},
 	}
 	conf4 := tfConf{
-		Provider:  provider,
+		Provider:  testAccProvider,
 		Directory: conf3.Directory.Copy().With("overwrite", "true"),
 		Extra:     tfmap{"path_previous": conf1.Directory["path"]},
 	}
 	resource.Test(t, resource.TestCase{
-		ExternalProviders: map[string]resource.ExternalProvider{
-			"null": {},
-		},
-		Providers: testAccProviders,
+		ExternalProviders: map[string]resource.ExternalProvider{"null": {}},
+		PreCheck:          testAccPreCheckConnection(t),
+		Providers:         testAccProviders,
 		Steps: []resource.TestStep{
 			{
 				Config:      testAccLinuxDirectoryeOverrideConfig(t, conf1),
@@ -163,17 +176,18 @@ func testAccLinuxDirectoryeOverrideConfig(t *testing.T, conf tfConf) (s string) 
 		    connection {
 		        type = "ssh"
 		        {{- .Provider.Serialize | nindent 8 }}
-			}
-			triggers = {
-				path = {{ .Directory.path }}
-			}
-			provisioner "remote-exec" {
-				inline = [
-					<<-EOF
-						mkdir -p "${self.triggers.path}"
-					EOF
-				]
-			}
+		    }
+		    triggers = {
+		        path = {{ .Directory.path }}
+		    }
+		    provisioner "remote-exec" {
+		        inline = [
+		            <<-EOF
+		                mkdir -p "${self.triggers["path"]}"
+		                echo -n "existing" > "${self.triggers["path"]}/existing"
+		            EOF
+		        ]
+		    }
 		}
 
 		resource "linux_directory" "directory" {
@@ -197,12 +211,14 @@ func testAccLinuxDirectoryeOverrideConfig(t *testing.T, conf tfConf) (s string) 
 		    provisioner "remote-exec" {
 		        inline = [
 		            <<-EOF
-		                [ ! -e '${self.triggers.path_previous}' ] || exit 101
-		                [ -d '${self.triggers.path}' ] || exit 102
+		                [ ! -e '${self.triggers["path_previous"]}' ] || exit 101
 		
-		                [ "$( stat -c %u '${self.triggers.path}' )" == "{{ .Directory.owner | default 0 }}" ] || exit 103
-		                [ "$( stat -c %g '${self.triggers.path}' )" == "{{ .Directory.group | default 0 }}" ] || exit 104
-		                [ "$( stat -c %a '${self.triggers.path}' )" == {{ .Directory.mode | default "755" }} ] || exit 105
+		                [ -d '${self.triggers["path"]}' ] || exit 102
+		                [ "$(cat '${self.triggers["path"]}/existing')" == "existing" ] || exit 103
+		
+		                [ "$( stat -c %u '${self.triggers["path"]}' )" == "{{ .Directory.owner | default 0 }}" ] || exit 104
+		                [ "$( stat -c %g '${self.triggers["path"]}' )" == "{{ .Directory.group | default 0 }}" ] || exit 105
+		                [ "$( stat -c %a '${self.triggers["path"]}' )" == {{ .Directory.mode | default "755" }} ] || exit 106
 		            EOF
 		        ]
 		    }
@@ -216,14 +232,13 @@ func testAccLinuxDirectoryeOverrideConfig(t *testing.T, conf tfConf) (s string) 
 
 func TestAccLinuxDirectoryRecyclePath(t *testing.T) {
 	conf1 := tfConf{
-		Provider:  provider,
+		Provider:  testAccProvider,
 		Directory: tNewTFMapDirectory().With("recycle_path", `"/tmp/recycle"`),
 	}
 	resource.Test(t, resource.TestCase{
-		ExternalProviders: map[string]resource.ExternalProvider{
-			"null": {},
-		},
-		Providers: testAccProviders,
+		ExternalProviders: map[string]resource.ExternalProvider{"null": {}},
+		PreCheck:          testAccPreCheckConnection(t),
+		Providers:         testAccProviders,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccLinuxDirectoryRecyclePathConfig(t, conf1),
@@ -238,21 +253,27 @@ func testAccLinuxDirectoryRecyclePathConfig(t *testing.T, conf tfConf) (s string
 		    {{- .Provider.Serialize | nindent 4 }}
 		}
 
+		locals {
+		    filename = "exist"
+		}
+
 		resource "null_resource" "destroy_validator" {
 		    connection {
 		        type = "ssh"
 		        {{- .Provider.Serialize | nindent 8 }}
 		    }
 		    triggers = {
+			    filename = local.filename
 		        recycle_path = {{ .Directory.recycle_path }}
 		    }
 		    provisioner "remote-exec" {
-				when = destroy
+		        when = destroy
 		        inline = [
 		            <<-EOF
 		                [ ! -e {{ .Directory.path }} ] || exit 100
-		                find "${self.triggers.recycle_path}" -name  "${ basename( {{ .Directory.path}} ) }" | grep . || exit 101
-		                rm -rf "${self.triggers.recycle_path}" || exit 102
+		                find "${self.triggers["recycle_path"]}" -name "${ basename( {{ .Directory.path}} ) }" | grep . || exit 101
+		                find "${self.triggers["recycle_path"]}" -name "${ self.triggers["filename"] }" |  grep "${ basename( {{ .Directory.path}} ) }/${ self.triggers["filename"] }" | grep . || exit 102
+		                rm -rf "${self.triggers["recycle_path"]}" || exit 103
 		            EOF
 		        ]
 		    }
@@ -262,6 +283,22 @@ func testAccLinuxDirectoryRecyclePathConfig(t *testing.T, conf tfConf) (s string
 		    depends_on = [ null_resource.destroy_validator ]  
 		
 		    {{- .Directory.Serialize | nindent 4 }}
+		}
+
+		resource "null_resource" "file" {
+		    triggers = {
+		        name = local.filename
+		        content = "i need to exist"
+		    }
+		    
+		    connection {
+		        type = "ssh"
+		        {{- .Provider.Serialize | nindent 8 }}
+		    }
+		    provisioner "file" {
+		        content = self.triggers["content"]
+		        destination = "${linux_directory.directory.path}/${self.triggers["name"]}"
+		    }
 		}
 
 		resource "null_resource" "create_validator" {
@@ -279,12 +316,14 @@ func testAccLinuxDirectoryRecyclePathConfig(t *testing.T, conf tfConf) (s string
 		    provisioner "remote-exec" {
 		        inline = [
 		            <<-EOF
-		                [ ! -e '${self.triggers.path_previous}' ] || exit 103
-		                [ -d '${self.triggers.path}' ] || exit 104
+		                [ ! -e '${self.triggers["path_previous"]}' ] || exit 104
+		                
+		                [ -d '${self.triggers["path"]}' ] || exit 105
+		                [ "$(cat '${self.triggers["path"]}/${null_resource.file.triggers["name"]}')" == "${null_resource.file.triggers["content"]}" ] || exit 106
 		
-		                [ "$( stat -c %u '${self.triggers.path}' )" == "{{ .Directory.owner | default 0 }}" ] || exit 105
-		                [ "$( stat -c %g '${self.triggers.path}' )" == "{{ .Directory.group | default 0 }}" ] || exit 106
-		                [ "$( stat -c %a '${self.triggers.path}' )" == {{ .Directory.mode | default "755" }} ] || exit 107
+		                [ "$( stat -c %u '${self.triggers["path"]}' )" == "{{ .Directory.owner | default 0 }}" ] || exit 107
+		                [ "$( stat -c %g '${self.triggers["path"]}' )" == "{{ .Directory.group | default 0 }}" ] || exit 108
+		                [ "$( stat -c %a '${self.triggers["path"]}' )" == {{ .Directory.mode | default "755" }} ] || exit 109
 		            EOF
 		        ]
 		    }
