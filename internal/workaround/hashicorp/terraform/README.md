@@ -4,4 +4,4 @@ A partial copy of [github.com/hashicorp/terraform](https://github.com/hashicorp/
 
 ## No PTY
 
-An edit to [github.com/hashicorp/terraform/communicator/ssh.Communicator](communicator/ssh/communicator.go#L50) is also done to add [NewNoPty()](communicator/ssh/communicator-no-pty.go#5) method to disable PTY.
+An edit to [github.com/hashicorp/terraform/communicator/ssh.Communicator](communicator/ssh/communicator.go#L50) is also done to add [NewNoPty()](communicator/ssh/communicator-no-pty.go#L5-L11) method to disable PTY.
