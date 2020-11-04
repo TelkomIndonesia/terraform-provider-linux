@@ -11,24 +11,23 @@ import (
 
 func TestAccLinuxFileBasic(t *testing.T) {
 	conf1 := tfConf{
-		Provider: provider,
+		Provider: testAccProvider,
 		File:     tNewTFMapFile().Without("owner", "group", "mode"),
 	}
 	conf2 := tfConf{
-		Provider: provider,
+		Provider: testAccProvider,
 		File:     conf1.File.Copy().With("content", `"test"`),
 	}
 	conf3 := tfConf{
-		Provider: provider,
+		Provider: testAccProvider,
 		File:     tNewTFMapFile(),
 		Extra:    tfmap{"path_previous": conf1.File["path"]},
 	}
 
 	resource.Test(t, resource.TestCase{
-		ExternalProviders: map[string]resource.ExternalProvider{
-			"null": {},
-		},
-		Providers: testAccProviders,
+		ExternalProviders: map[string]resource.ExternalProvider{"null": {}},
+		PreCheck:          testAccPreCheckConnection(t),
+		Providers:         testAccProviders,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccLinuxFileBasicConfig(t, conf1),
@@ -84,24 +83,24 @@ func testAccLinuxFileBasicConfig(t *testing.T, conf tfConf) (s string) {
 		        {{- .Provider.Serialize | nindent 8 }}
 		    }
 		    provisioner "file" {
-		        content = self.triggers.content
-		        destination = self.triggers.path_compare
+		        content = self.triggers["content"]
+		        destination = self.triggers["path_compare"]
 		    }
 		    provisioner "remote-exec" {
 		        inline = [
 		            <<-EOF
-		                [ ! -e "${self.triggers.path_previous}"  ] || exit 101
+		                [ ! -e "${self.triggers["path_previous"]}"  ] || exit 101
 		
-		                cmp -s "${self.triggers.path}" "${self.triggers.path_compare}" || exit 102
-		                [ "$( stat -c %u '${self.triggers.path}' )" == "{{ .File.owner | default 0 }}" ] || exit 103
-		                [ "$( stat -c %g '${self.triggers.path}' )" == "{{ .File.group | default 0 }}" ] || exit 104
-		                [ "$( stat -c %a '${self.triggers.path}' )" == {{ .File.mode | default 644 }} ] || exit 105
+		                cmp -s "${self.triggers["path"]}" "${self.triggers["path_compare"]}" || exit 102
+		                [ "$( stat -c %u '${self.triggers["path"]}' )" == "{{ .File.owner | default 0 }}" ] || exit 103
+		                [ "$( stat -c %g '${self.triggers["path"]}' )" == "{{ .File.group | default 0 }}" ] || exit 104
+		                [ "$( stat -c %a '${self.triggers["path"]}' )" == {{ .File.mode | default 644 }} ] || exit 105
 		            EOF
 		        ]
 		    }
 		    provisioner "remote-exec" {
 		        when = destroy
-		        inline = [ "rm -f '${self.triggers.path_compare}'" ]
+		        inline = [ "rm -f '${self.triggers["path_compare"]}'" ]
 		    }
 		}
 	`)
@@ -114,29 +113,28 @@ func testAccLinuxFileBasicConfig(t *testing.T, conf tfConf) (s string) {
 
 func TestAccLinuxFileOverride(t *testing.T) {
 	conf1 := tfConf{
-		Provider: provider,
+		Provider: testAccProvider,
 		File:     tNewTFMapFile(),
 	}
 	conf2 := tfConf{
-		Provider: provider,
+		Provider: testAccProvider,
 		File:     conf1.File.Copy().With("overwrite", "true"),
 	}
 	conf3 := tfConf{
-		Provider: provider,
+		Provider: testAccProvider,
 		File:     tNewTFMapFile(),
 		Extra:    tfmap{"path_previous": conf1.File["path"]},
 	}
 	conf4 := tfConf{
-		Provider: provider,
+		Provider: testAccProvider,
 		File:     conf3.File.Copy().With("overwrite", "true"),
 		Extra:    tfmap{"path_previous": conf1.File["path"]},
 	}
 
 	resource.Test(t, resource.TestCase{
-		ExternalProviders: map[string]resource.ExternalProvider{
-			"null": {},
-		},
-		Providers: testAccProviders,
+		ExternalProviders: map[string]resource.ExternalProvider{"null": {}},
+		PreCheck:          testAccPreCheckConnection(t),
+		Providers:         testAccProviders,
 		Steps: []resource.TestStep{
 			{
 				Config:      testAccLinuxFileOverrideConfig(t, conf1),
@@ -171,11 +169,11 @@ func testAccLinuxFileOverrideConfig(t *testing.T, conf tfConf) (s string) {
 		        {{- .Provider.Serialize | nindent 8 }}
 		    }
 		    provisioner "remote-exec" {
-		        inline = [ "mkdir -p ${ dirname(self.triggers.path) }" ]
+		        inline = [ "mkdir -p ${ dirname(self.triggers["path"]) }" ]
 		    }
 		    provisioner "file" {
 		        content = "existing"
-		        destination = self.triggers.path
+		        destination = self.triggers["path"]
 		    }
 		}
 
@@ -199,24 +197,24 @@ func testAccLinuxFileOverrideConfig(t *testing.T, conf tfConf) (s string) {
 		        {{- .Provider.Serialize | nindent 8 }}
 		    }
 		    provisioner "file" {
-		        content = self.triggers.content
-		        destination = self.triggers.path_compare
+		        content = self.triggers["content"]
+		        destination = self.triggers["path_compare"]
 		    }
 		    provisioner "remote-exec" {
 		        inline = [
 		            <<-EOF
-		                [ ! -e "${self.triggers.path_previous}"  ] || exit 101
+		                [ ! -e "${self.triggers["path_previous"]}"  ] || exit 101
 		
-		                cmp -s "${self.triggers.path}" "${self.triggers.path_compare}" || exit 102
-		                [ "$( stat -c %u '${self.triggers.path}' )" == "{{ .File.owner | default 0 }}" ] || exit 103
-		                [ "$( stat -c %g '${self.triggers.path}' )" == "{{ .File.group | default 0 }}" ] || exit 104
-		                [ "$( stat -c %a '${self.triggers.path}' )" == {{ .File.mode | default 644 }} ] || exit 105
+		                cmp -s "${self.triggers["path"]}" "${self.triggers["path_compare"]}" || exit 102
+		                [ "$( stat -c %u '${self.triggers["path"]}' )" == "{{ .File.owner | default 0 }}" ] || exit 103
+		                [ "$( stat -c %g '${self.triggers["path"]}' )" == "{{ .File.group | default 0 }}" ] || exit 104
+		                [ "$( stat -c %a '${self.triggers["path"]}' )" == {{ .File.mode | default 644 }} ] || exit 105
 		            EOF
 		        ]
 		    }
 		    provisioner "remote-exec" {
 		        when = destroy
-		        inline = [ "rm -f '${self.triggers.path_compare}'" ]
+		        inline = [ "rm -f '${self.triggers["path_compare"]}'" ]
 		    }
 		}
 	`)
@@ -229,19 +227,18 @@ func testAccLinuxFileOverrideConfig(t *testing.T, conf tfConf) (s string) {
 
 func TestAccLinuxFileIgnoreContent(t *testing.T) {
 	conf1 := tfConf{
-		Provider: provider,
+		Provider: testAccProvider,
 		File:     tNewTFMapFile().With("ignore_content", "true"),
 	}
 	conf2 := tfConf{
-		Provider: provider,
+		Provider: testAccProvider,
 		File:     tNewTFMapFile().With("ignore_content", "true"),
 		Extra:    tfmap{"path_previous": conf1.File["path"]},
 	}
 	resource.Test(t, resource.TestCase{
-		ExternalProviders: map[string]resource.ExternalProvider{
-			"null": {},
-		},
-		Providers: testAccProviders,
+		ExternalProviders: map[string]resource.ExternalProvider{"null": {}},
+		PreCheck:          testAccPreCheckConnection(t),
+		Providers:         testAccProviders,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccLinuxFileIgnoreContentConfig(t, conf1),
@@ -291,23 +288,23 @@ func testAccLinuxFileIgnoreContentConfig(t *testing.T, conf tfConf) (s string) {
 		    }
 		    provisioner "file" {
 		        content = local.new_content
-		        destination = self.triggers.path_compare
+		        destination = self.triggers["path_compare"]
 		    }
 		    provisioner "remote-exec" {
 		        inline = [
 		            <<-EOF
-		                [ ! -e "${self.triggers.path_previous}"  ] || exit 101
+		                [ ! -e "${self.triggers["path_previous"]}"  ] || exit 101
 		
-		                cmp -s "${self.triggers.path}" "${self.triggers.path_compare}" || exit 102
-		                [ "$( stat -c %u '${self.triggers.path}' )" == "{{ .File.owner | default 0 }}" ] || exit 103
-		                [ "$( stat -c %g '${self.triggers.path}' )" == "{{ .File.group | default 0 }}" ] || exit 104
-		                [ "$( stat -c %a '${self.triggers.path}' )" == {{ .File.mode | default 644 }} ] || exit 105
+		                cmp -s "${self.triggers["path"]}" "${self.triggers["path_compare"]}" || exit 102
+		                [ "$( stat -c %u '${self.triggers["path"]}' )" == "{{ .File.owner | default 0 }}" ] || exit 103
+		                [ "$( stat -c %g '${self.triggers["path"]}' )" == "{{ .File.group | default 0 }}" ] || exit 104
+		                [ "$( stat -c %a '${self.triggers["path"]}' )" == {{ .File.mode | default 644 }} ] || exit 105
 		            EOF
 		        ]
 		    }
 		    provisioner "remote-exec" {
 		        when = destroy
-		        inline = [ "rm -f '${self.triggers.path_compare}'" ]
+		        inline = [ "rm -f '${self.triggers["path_compare"]}'" ]
 		    }
 		}
 	`)
@@ -319,14 +316,13 @@ func testAccLinuxFileIgnoreContentConfig(t *testing.T, conf tfConf) (s string) {
 
 func TestAccLinuxFileRecyclePath(t *testing.T) {
 	conf1 := tfConf{
-		Provider: provider,
+		Provider: testAccProvider,
 		File:     tNewTFMapFile().With("recycle_path", `"/tmp/recycle"`),
 	}
 	resource.Test(t, resource.TestCase{
-		ExternalProviders: map[string]resource.ExternalProvider{
-			"null": {},
-		},
-		Providers: testAccProviders,
+		ExternalProviders: map[string]resource.ExternalProvider{"null": {}},
+		PreCheck:          testAccPreCheckConnection(t),
+		Providers:         testAccProviders,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccLinuxFileRecyclePathConfig(t, conf1),
@@ -358,8 +354,8 @@ func testAccLinuxFileRecyclePathConfig(t *testing.T, conf tfConf) (s string) {
 		        inline = [
 		            <<-EOF
 		                [ ! -e {{ .File.path }} ] || exit 100
-		                find ${self.triggers.recycle_path} -name "$(basename "{{ .File.path }}")" | grep . || exit 101
-		                rm -rf ${self.triggers.recycle_path} || exit 102
+		                find ${self.triggers["recycle_path"]} -name "$(basename "{{ .File.path }}")" | grep . || exit 101
+		                rm -rf ${self.triggers["recycle_path"]} || exit 102
 		            EOF
 		        ]
 		    }
@@ -384,24 +380,24 @@ func testAccLinuxFileRecyclePathConfig(t *testing.T, conf tfConf) (s string) {
 		        {{- .Provider.Serialize | nindent 8 }}
 		    }
 		    provisioner "file" {
-		        content = self.triggers.content
-		        destination = self.triggers.path_compare
+		        content = self.triggers["content"]
+		        destination = self.triggers["path_compare"]
 		    }
 		    provisioner "remote-exec" {
 		        inline = [
 		            <<-EOF
-		                [ ! -e "${self.triggers.path_previous}"  ] || exit 101
+		                [ ! -e "${self.triggers["path_previous"]}"  ] || exit 101
 		
-		                cmp -s "${self.triggers.path}" "${self.triggers.path_compare}" || exit 103
-		                [ "$( stat -c %u '${self.triggers.path}' )" == "{{ .File.owner | default 0 }}" ] || exit 104
-		                [ "$( stat -c %g '${self.triggers.path}' )" == "{{ .File.group | default 0 }}" ] || exit 105
-		                [ "$( stat -c %a '${self.triggers.path}' )" == {{ .File.mode | default 644 }} ] || exit 106
+		                cmp -s "${self.triggers["path"]}" "${self.triggers["path_compare"]}" || exit 103
+		                [ "$( stat -c %u '${self.triggers["path"]}' )" == "{{ .File.owner | default 0 }}" ] || exit 104
+		                [ "$( stat -c %g '${self.triggers["path"]}' )" == "{{ .File.group | default 0 }}" ] || exit 105
+		                [ "$( stat -c %a '${self.triggers["path"]}' )" == {{ .File.mode | default 644 }} ] || exit 106
 		            EOF
 		        ]
 		    }
 		    provisioner "remote-exec" {
 		        when = destroy
-		        inline = [ "rm -f '${self.triggers.path_compare}'" ]
+		        inline = [ "rm -f '${self.triggers["path_compare"]}'" ]
 		    }
 		}
 	`)

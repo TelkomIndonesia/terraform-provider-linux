@@ -1,0 +1,59 @@
+kind: pipeline
+name: default
+type: docker
+
+steps:
+  - name: fetch
+    image: docker:git
+    commands:
+      - git fetch --tags
+  
+  - name: ssh.test
+    image: rucciva/sshd:1.3.0
+    pull: always
+    detach: true
+    environment:
+      SSH_ENABLE_ROOT: "true"
+      SSH_ENABLE_PASSWORD_AUTH: "true"
+      SSH_ROOT_AUTHORIZED_KEY: ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDiH0y8fVWj472id/WIppOr3IiyTyu4LaHvEiuhJFa0SE1ns50WYq329DTaH0lN7lAp6+KoeBg+3hO2mcXwcGQp+JKQ5hfiIyCxQrlo6D1l3cnjkQL6Q0Y0RJ1jKJAsfQLwvNKMdyyXKXX9wbYJr1C/b+BorV/VZd3rvPoWum/JtgZlNirOjPKVv5YUlSyW7+DIvmzg7OC257RyA19gbej1of7KB+pPhriKdZe1HwOT+f5v03Aw8s5uKN7muX+wCbV3RafLSJFLpmyBj/nHXj6hAGVVhm+EN8MoNwvJ5zqjrX9c/B4UBc8FPc/9XL+bfKF0FK7/QGIdKfV7KG5ra94OcZxi9ILzNYIJy6Tb09i2xqn9S+8o/FUhi5oBcwjp0k93JVvkGVQF0JT7y4LXrNJkoam0UocttAzqqjdHvd364AMbbqey4/5aSnuacczdItL1kBXFqCk5VqmZ2Hw4Nq7HeAKyQrLF99mMIMo8vbom22LeybrBl+tfcq2VE6SAXjM= rucciva@R-MacbookPro
+
+  - name: wait ssh 
+    image: rucciva/sshd:1.3.0
+    commands:
+      - until nc -z ssh.test 22; do sleep 1; done
+      
+  - name: test 
+    image: golang:1.15.2
+    environment:
+      TEST_ACC_LINUX_PROVIDER_HOST: ssh.test
+      TEST_ACC_LINUX_PROVIDER_PORT: "22"
+    volumes:
+      - name: go
+        path: /go
+    commands:
+      - make testacc
+
+  - name: release
+    image: golang:1.15.2
+    environment:
+      GITHUB_TOKEN:
+        from_secret: github_token
+      GPG_PRIVATE_KEY:
+        from_secret: gpg_private_key
+      GPG_FINGERPRINT:
+        from_secret: gpg_fingerprint
+      GPG_PASSPHRASE:
+        from_secret: gpg_passphrase
+    volumes:
+      - name: go
+        path: /go
+    commands:
+      - echo "$GPG_PRIVATE_KEY" | gpg --import --no-tty --batch --yes
+      - curl -sL https://git.io/goreleaser | bash
+    when:
+      event: 
+        - tag
+
+volumes:
+  - name: go
+    temp: {}

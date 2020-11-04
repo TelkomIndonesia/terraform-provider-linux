@@ -12,7 +12,7 @@ import (
 
 func TestAccLinuxScriptBasic(t *testing.T) {
 	conf1 := tfConf{
-		Provider: provider,
+		Provider: testAccProvider,
 		Script: tfScript{
 			Environment: tfmap{
 				"FILE":    fmt.Sprintf(`"/tmp/linux/%s"`, acctest.RandString(16)),
@@ -21,16 +21,15 @@ func TestAccLinuxScriptBasic(t *testing.T) {
 		},
 	}
 	conf2 := tfConf{
-		Provider: provider,
+		Provider: testAccProvider,
 		Script:   conf1.Script.Copy(),
 	}
 	conf2.Script.Environment = conf2.Script.Environment.With("FILE", fmt.Sprintf(`"/tmp/linux/%s"`, acctest.RandString(16)))
 
 	resource.Test(t, resource.TestCase{
-		ExternalProviders: map[string]resource.ExternalProvider{
-			"null": {},
-		},
-		Providers: testAccProviders,
+		ExternalProviders: map[string]resource.ExternalProvider{"null": {}},
+		PreCheck:          testAccPreCheckConnection(t),
+		Providers:         testAccProviders,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccLinuxScriptBasicConfig(t, conf1),
@@ -89,10 +88,10 @@ func testAccLinuxScriptBasicConfig(t *testing.T, conf tfConf) (s string) {
 
 		resource "null_resource" "create_validator" {
 		    triggers = {
-		        path = {{ .Script.Environment.FILE }}
-		        content = {{ .Script.Environment.CONTENT }}
+		        path = linux_script.script.environment["FILE"]
+		        content = linux_script.script.environment["CONTENT"]
 		
-		        path_compare = format("%s.compare", {{ .Script.Environment.FILE }})
+		        path_compare = "${linux_script.script.environment["FILE"]}.compare"
 		        path_previous = {{ .Extra.path_previous | default "0"}}
 		    }
 		    connection {
@@ -100,24 +99,24 @@ func testAccLinuxScriptBasicConfig(t *testing.T, conf tfConf) (s string) {
 		        {{- .Provider.Serialize | nindent 8 }}
 		    }
 		    provisioner "file" {
-		        content = self.triggers.content
-		        destination = self.triggers.path_compare
+		        content = self.triggers["content"]
+		        destination = self.triggers["path_compare"]
 		    }
 		    provisioner "remote-exec" {
 		        inline = [
 		            <<-EOF
-		                [ ! -e "${self.triggers.path_previous}"  ] || exit 102
+		                [ ! -e "${self.triggers["path_previous"]}"  ] || exit 102
 		
-		                cmp -s "${self.triggers.path}" "${self.triggers.path_compare}" || exit 103
-		                [ "$( stat -c %u '${self.triggers.path}' )" == "0" ] || exit 104
-		                [ "$( stat -c %g '${self.triggers.path}' )" == "0" ] || exit 105
-		                [ "$( stat -c %a '${self.triggers.path}' )" == "644" ] || exit 106
+		                cmp -s "${self.triggers["path"]}" "${self.triggers["path_compare"]}" || exit 103
+		                [ "$( stat -c %u '${self.triggers["path"]}' )" == "0" ] || exit 104
+		                [ "$( stat -c %g '${self.triggers["path"]}' )" == "0" ] || exit 105
+		                [ "$( stat -c %a '${self.triggers["path"]}' )" == "644" ] || exit 106
 		            EOF
 		        ]
 		    }
 		    provisioner "remote-exec" {
 		        when = destroy
-		        inline = [ "rm -f '${self.triggers.path_compare}'" ]
+		        inline = [ "rm -f '${self.triggers["path_compare"]}'" ]
 		    }
 		}
 	`)
@@ -129,7 +128,7 @@ func testAccLinuxScriptBasicConfig(t *testing.T, conf tfConf) (s string) {
 
 func TestAccLinuxScriptNoUpdate(t *testing.T) {
 	conf1 := tfConf{
-		Provider: provider,
+		Provider: testAccProvider,
 		Script: tfScript{
 			Environment: tfmap{
 				"FILE":    fmt.Sprintf(`"/tmp/linux/%s"`, acctest.RandString(16)),
@@ -141,28 +140,27 @@ func TestAccLinuxScriptNoUpdate(t *testing.T) {
 		},
 	}
 	conf2 := tfConf{
-		Provider: provider,
+		Provider: testAccProvider,
 		Script:   conf1.Script.Copy(),
 		Extra:    conf1.Extra.Copy().With("Version", "2.0.0"),
 	}
 	conf3 := tfConf{
-		Provider: provider,
+		Provider: testAccProvider,
 		Script: tfScript{
 			Environment: conf2.Script.Environment.Copy().With("FILE", fmt.Sprintf(`"/tmp/linux1/%s"`, acctest.RandString(16))),
 		},
 		Extra: conf2.Extra.Copy(),
 	}
 	conf4 := tfConf{
-		Provider: provider,
+		Provider: testAccProvider,
 		Script:   conf2.Script.Copy(),
 		Extra:    conf2.Extra.Copy().With("Taint", `\n`),
 	}
 
 	resource.Test(t, resource.TestCase{
-		ExternalProviders: map[string]resource.ExternalProvider{
-			"null": {},
-		},
-		Providers: testAccProviders,
+		ExternalProviders: map[string]resource.ExternalProvider{"null": {}},
+		PreCheck:          testAccPreCheckConnection(t),
+		Providers:         testAccProviders,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccLinuxScriptNoUpdateConfig(t, conf1),
@@ -214,13 +212,13 @@ func testAccLinuxScriptNoUpdateConfig(t *testing.T, conf tfConf) (s string) {
 	
 			    provisioner "remote-exec" {
 			        inline = [
-			            "mkdir -p '${self.triggers.directory}'"
+			            "mkdir -p '${self.triggers["directory"]}'"
 			        ]
 			    }
 			    provisioner "remote-exec" {
 			        when = destroy
 			        inline = [
-			            "rm -rf '${self.triggers.directory}'"
+			            "rm -rf '${self.triggers["directory"]}'"
 			        ]
 			    }
 			}
@@ -258,24 +256,24 @@ func testAccLinuxScriptNoUpdateConfig(t *testing.T, conf tfConf) (s string) {
 			        {{- .Provider.Serialize | nindent 8 }}
 			    }
 			    provisioner "file" {
-			        content = self.triggers.content
-			        destination = self.triggers.path_compare
+			        content = self.triggers["content"]
+			        destination = self.triggers["path_compare"]
 			    }
 			    provisioner "remote-exec" {
 			        inline = [
 			            <<-EOF
-			                [ ! -e "${self.triggers.path_previous}"  ] || exit 101
+			                [ ! -e "${self.triggers["path_previous"]}"  ] || exit 101
 			
-			                cmp -s "${self.triggers.path}" "${self.triggers.path_compare}" || exit 102
-			                [ "$( stat -c %u '${self.triggers.path}' )" == "0" ] || exit 103
-			                [ "$( stat -c %g '${self.triggers.path}' )" == "0" ] || exit 104
-			                [ "$( stat -c %a '${self.triggers.path}' )" == "644" ] || exit 105
+			                cmp -s "${self.triggers["path"]}" "${self.triggers["path_compare"]}" || exit 102
+			                [ "$( stat -c %u '${self.triggers["path"]}' )" == "0" ] || exit 103
+			                [ "$( stat -c %g '${self.triggers["path"]}' )" == "0" ] || exit 104
+			                [ "$( stat -c %a '${self.triggers["path"]}' )" == "644" ] || exit 105
 			            EOF
 			        ]
 			    }
 			    provisioner "remote-exec" {
 			        when = destroy
-			        inline = [ "rm -f '${self.triggers.path_compare}'" ]
+			        inline = [ "rm -f '${self.triggers["path_compare"]}'" ]
 			    }
 			}
 

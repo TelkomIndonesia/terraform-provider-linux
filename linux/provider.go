@@ -162,7 +162,7 @@ func newLinuxFromSchema(d *schema.ResourceData) (l *linux, err error) {
 		attrProviderScriptPath: cast.ToString(d.Get(attrProviderScriptPath)),
 		attrProviderTimeout:    cast.ToString(d.Get(attrProviderTimeout)),
 	}
-	return &linux{connInfo: connInfo, oneConn: sync.Once{}}, nil
+	return &linux{connInfo: connInfo, commOnce: sync.Once{}}, nil
 }
 
 func Provider() *schema.Provider {
