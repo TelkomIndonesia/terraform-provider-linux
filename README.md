@@ -2,6 +2,7 @@ Terraform Provider Linux
 ========================
 
 [![Build Status](https://cloud.drone.io/api/badges/TelkomIndonesia/terraform-provider-linux/status.svg?branch=master)](https://cloud.drone.io/TelkomIndonesia/terraform-provider-linux)
+[![Go Report Card](https://goreportcard.com/badge/github.com/TelkomIndonesia/terraform-provider-linux)](https://goreportcard.com/report/github.com/TelkomIndonesia/terraform-provider-linux)
 
 - Website: <https://registry.terraform.io/namespaces/TelkomIndonesia>
 
@@ -18,7 +19,7 @@ Usage
 provider "linux" {
     host = "127.0.0.1"
     port = 22
-    username = "root"
+    user = "root"
     password = "root"
 }
 ```

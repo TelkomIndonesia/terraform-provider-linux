@@ -8,7 +8,7 @@ Provider for managing linux machine through SSH connection.
 provider "linux" {
     host = "127.0.0.1"
     port = 22
-    username = "root"
+    user = "root"
     password = "root"
 }
 
