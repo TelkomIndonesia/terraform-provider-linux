@@ -27,9 +27,10 @@ var (
 type linux struct {
 	connInfo map[string]string
 
-	comm     *ssh.Communicator
-	commErr  error
-	commOnce sync.Once
+	comm      *ssh.Communicator
+	commErr   error
+	commOnce  sync.Once
+	commMutex sync.Mutex
 }
 
 func (l *linux) init(ctx context.Context) error {
@@ -69,6 +70,9 @@ func (l *linux) communicator(ctx context.Context) (*ssh.Communicator, error) {
 }
 
 func (l *linux) exec(ctx context.Context, cmd *remote.Cmd) (err error) {
+	l.commMutex.Lock()
+	defer l.commMutex.Unlock()
+
 	c, err := l.communicator(ctx)
 	if err != nil {
 		return
@@ -80,6 +84,9 @@ func (l *linux) exec(ctx context.Context, cmd *remote.Cmd) (err error) {
 }
 
 func (l *linux) upload(ctx context.Context, path string, input io.Reader) (err error) {
+	l.commMutex.Lock()
+	defer l.commMutex.Unlock()
+
 	c, err := l.communicator(ctx)
 	if err != nil {
 		return
@@ -88,6 +95,9 @@ func (l *linux) upload(ctx context.Context, path string, input io.Reader) (err e
 }
 
 func (l *linux) uploadScript(ctx context.Context, path string, input io.Reader) (err error) {
+	l.commMutex.Lock()
+	defer l.commMutex.Unlock()
+
 	c, err := l.communicator(ctx)
 	if err != nil {
 		return

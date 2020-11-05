@@ -77,3 +77,52 @@ func testAccLinuxProviderUnknownValueConf(t *testing.T) (s string) {
 	t.Log(s)
 	return
 }
+
+func TestAccLinuxProviderParallel(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		Providers: testAccProviders,
+		PreCheck:  testAccPreCheckConnection(t),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccLinuxProviderParallelConf(t),
+			},
+		},
+	},
+	)
+}
+
+func testAccLinuxProviderParallelConf(t *testing.T) (s string) {
+	data := struct {
+		Provider1, Provider2 tfmap
+	}{
+		testAccProvider, testAccProvider.Copy().Without("host"),
+	}
+
+	conf := heredoc.Doc(`
+		provider "linux" {
+		    {{- .Provider1.Serialize | nindent 4 }}
+		}
+		
+		resource "linux_file" "files" {
+		    count       = 20
+		    path        = "/tmp/linux/file-${count.index}"
+		    content     = "file-${count.index}"
+		}
+		resource "linux_directory" "directories" {
+		    count       = 20
+		    path        = "/tmp/linux/dir-${count.index}"
+		}
+		resource "linux_script" "script" {
+		    count       = 20
+		    lifecycle_commands {
+				create = "mkdir -p /tmp/linux/script-dir"
+				read = "ls -lhd /tmp/linux/script-dir"
+				delete = "rm -rf /tmp/linux/script-dir"
+			}
+		}
+	`)
+	s, err := tCompileTemplate(conf, data)
+	require.NoError(t, err)
+	t.Log(s)
+	return
+}
