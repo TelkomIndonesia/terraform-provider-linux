@@ -273,7 +273,7 @@ func (h handlerScriptResource) CustomizeDiff(c context.Context, rd *schema.Resou
 		return
 	}
 	for _, key := range rd.GetChangedKeysPrefix("") {
-		if key == attrScriptLifecycleCommands+".0."+attrScriptLifecycleCommandCreate ||
+		if key == attrScriptLifecycleCommands+".0."+attrScriptLifecycleCommandRead ||
 			key == attrScriptLifecycleCommands+".0."+attrScriptLifecycleCommandDelete {
 			continue // should not trigger force new
 		}
