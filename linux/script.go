@@ -13,14 +13,14 @@ import (
 
 type env map[string]string
 
-func (e env) serialize(s string) string {
+func (e env) serialize(sep string) string {
 	b := strings.Builder{}
 	first := true
 	for k, v := range e {
 		if first {
 			first = false
 		} else {
-			b.WriteString(s)
+			b.WriteString(sep)
 		}
 
 		b.WriteString(k)
@@ -57,8 +57,11 @@ func (sc *script) exec(ctx context.Context) (res string, err error) {
 	}
 	defer func() { _ = sc.l.remove(ctx, path, "") }()
 
-	cmd := sc.env.inline() + " " + shellescape.QuoteCommand(sc.interpreter) + " " + path
-	cmd = fmt.Sprintf(`sh -c 'cd %s && %s'`, shellescape.Quote(sc.workdir), cmd)
+	cmd := fmt.Sprintf(`{ %s && %s && %s %s ;}`,
+		shellescape.QuoteCommand([]string{"mkdir", "-p", sc.workdir}),
+		shellescape.QuoteCommand([]string{"cd", sc.workdir}),
+		sc.env.inline(), shellescape.QuoteCommand(append(sc.interpreter, path)),
+	)
 	stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
 	err = sc.l.exec(ctx,
 		&remote.Cmd{

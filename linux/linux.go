@@ -121,18 +121,15 @@ type permission struct {
 
 func (l *linux) setPermission(ctx context.Context, path string, p permission) (err error) {
 	pathSafe := shellescape.Quote(path)
-	cmd := fmt.Sprintf(`sh -c "chown %d:%d %s && chmod %s %s"`,
+	cmd := fmt.Sprintf(`{ chown %d:%d %s && chmod %s %s ;}`,
 		p.owner, p.group, pathSafe, p.mode, pathSafe)
 	return l.exec(ctx, &remote.Cmd{Command: cmd})
 }
 
 func (l *linux) getPermission(ctx context.Context, path string) (p permission, err error) {
 	stdout := new(bytes.Buffer)
-	cmd := remote.Cmd{
-		Command: fmt.Sprintf(`stat -c '%%u %%g %%a' %s`, shellescape.Quote(path)),
-		Stdout:  stdout,
-	}
-	err = l.exec(ctx, &cmd)
+	cmd := shellescape.QuoteCommand([]string{"stat", "-c", "%u %g %a", path})
+	err = l.exec(ctx, &remote.Cmd{Command: cmd, Stdout: stdout})
 	var exitError *remote.ExitError
 	if errors.As(err, &exitError) {
 		err = errPathNotExist
@@ -148,7 +145,7 @@ func (l *linux) getPermission(ctx context.Context, path string) (p permission, e
 	}
 	parts := strings.Split(strings.TrimSpace(out), " ")
 	if len(parts) != 3 {
-		err = fmt.Errorf("malformed output of %q: %q", cmd.Command, out)
+		err = fmt.Errorf("malformed output of %q: %q", cmd, out)
 		return
 	}
 	owner, err := strconv.ParseUint(parts[0], 10, 16)
@@ -179,13 +176,13 @@ func (l *linux) reservePath(ctx context.Context, path string) (err error) {
 }
 
 func (l *linux) mkdirp(ctx context.Context, path string) (err error) {
-	cmd := fmt.Sprintf(`mkdir -p %s`, shellescape.Quote(path))
+	cmd := shellescape.QuoteCommand([]string{"mkdir", "-p", path})
 	return l.exec(ctx, &remote.Cmd{Command: cmd})
 }
 
 func (l *linux) cat(ctx context.Context, path string) (s string, err error) {
 	stdout := new(bytes.Buffer)
-	cmd := fmt.Sprintf("cat %s", shellescape.Quote(path))
+	cmd := shellescape.QuoteCommand([]string{"cat", path})
 	if err = l.exec(ctx, &remote.Cmd{Command: cmd, Stdout: stdout}); err != nil {
 		return
 	}
@@ -193,7 +190,7 @@ func (l *linux) cat(ctx context.Context, path string) (s string, err error) {
 }
 
 func (l *linux) mv(ctx context.Context, old, new string) (err error) {
-	cmd := fmt.Sprintf(`mv %s %s`, shellescape.Quote(old), shellescape.Quote(new))
+	cmd := shellescape.QuoteCommand([]string{"mv", old, new})
 	return l.exec(ctx, &remote.Cmd{Command: cmd})
 }
 
@@ -203,12 +200,18 @@ func (l *linux) remove(ctx context.Context, path, recyclePath string) (err error
 	}
 
 	var cmd string
-	path = shellescape.Quote(path)
 	if recyclePath != "" {
-		recycleFolder := shellescape.Quote(fmt.Sprintf("%s/%d", recyclePath, time.Now().Unix()))
-		cmd = fmt.Sprintf(`sh -c "[ ! -e %s ] || { mkdir -p %s && mv %s %s; }"`, path, recycleFolder, path, recycleFolder)
+		recycleFolder := fmt.Sprintf("%s/%d", recyclePath, time.Now().Unix())
+		cmd = fmt.Sprintf(`{ [ ! -e %s ] || { %s && %s ;} ;}`,
+			shellescape.Quote(path),
+			shellescape.QuoteCommand([]string{"mkdir", "-p", recycleFolder}),
+			shellescape.QuoteCommand([]string{"mv", path, recycleFolder}),
+		)
 	} else {
-		cmd = fmt.Sprintf(`sh -c "[ ! -e %s ] || rm -rf %s"`, path, path)
+		cmd = fmt.Sprintf(`{ [ ! -e %s ] || %s ;}`,
+			shellescape.Quote(path),
+			shellescape.QuoteCommand([]string{"rm", "-rf", path}),
+		)
 	}
 	return l.exec(ctx, &remote.Cmd{Command: cmd})
 }
