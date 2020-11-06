@@ -14,9 +14,15 @@ func TestAccLinuxScriptBasic(t *testing.T) {
 	conf1 := tfConf{
 		Provider: testAccProvider,
 		Script: tfScript{
+			Interpreter: tfList{`"sh"`, `"-c"`},
 			Environment: tfmap{
-				"FILE":    fmt.Sprintf(`"/tmp/linux/%s"`, acctest.RandString(16)),
-				"CONTENT": `"test"`,
+				"FILE": fmt.Sprintf(`"/tmp/linux/%s.yml"`, acctest.RandString(16)),
+				"CONTENT": heredoc.Doc(`
+					key:
+						- key1: "val1"
+						  key2: 'val'
+						- key1: "val2"
+				`),
 			},
 		},
 	}

@@ -25,9 +25,9 @@ The following arguments are supported:
 
 - `lifecycle_commands` - (Required) Block that contains commands to be remotely executed respectively in Create|Read|Update|Delete phase. For complex commands, use [the file function](https://www.terraform.io/docs/configuration/functions/file.html).
 - `triggers` - (Optional, string map) Attribute that will trigger resource recreation on changes just like the one in [null_resource](https://registry.terraform.io/providers/hashicorp/null/latest/docs/resources/resource#triggers). Default empty map.
-- `environment` - (Optional, string map ) A list of linux environment that will be available in each `lifecycle_commands`. Default empty map.
-- `sensitive_environment` - (Optional, string map) Just like `environment` except they don't show up in log files. Default empty map.
-- `interpreter` - (Optional, string list) Interpreter for running each `lifecycle_commands`. Default empty list which is equal to `[ "sh" ,  "-c" ]`.
+- `environment` - (Optional, string map) A list of linux environment that will be available in each `lifecycle_commands`. Default empty map.
+- `sensitive_environment` - (Optional, string map) Just like `environment` except they don't show up in log files. In case of duplication,  environment variables defined here will take precedence over the ones in `environment`. Default empty map.
+- `interpreter` - (Optional, string list) Interpreter for running each `lifecycle_commands`. Default empty list.
 - `working_directory` - (Optional, string) The working directory where each `lifecycle_commands` is executed. Default empty string.
 
 ### lifecycle_commands
@@ -35,8 +35,8 @@ The following arguments are supported:
 The following arguments are supported:
 
 - `create` - (Required, string) Commands that will be execued in Create phase.
-- `read` - (Required, string) Commands that will be execued in Read phase and after execution of `create` or `update` commands. Terraform will record the output of these commands and trigger update/recreation when the output changes. If the result of running these commands is empty string, the resource is considered as destroyed.
-- `update` - (Optional, string) Commands that will be execued in Update phase. Omiting this will disable Update phase and trigger resource recreation (Delete -> Create) each time terraform detect changes.
+- `read` - (Required, string) Commands that will be execued in Read phase and after execution of `create` or `update` commands. Terraform will record the output of these commands inside `output` attributes and trigger update/recreation when it changes. If the result of running these commands is empty string, the resource is considered as destroyed.
+- `update` - (Optional, string) Commands that will be execued in Update phase. Previous `output` are available from stdin. Omiting this will disable Update phase and trigger resource recreation (Delete -> Create) each time terraform detect changes.
 - `delete` - (Required, string) Commands that will be execued in Delete phase.
 
 ## Attribute Reference

@@ -56,7 +56,9 @@ func (l *linux) createFile(ctx context.Context, f *file) (err error) {
 		err = l.upload(ctx, f.path, strings.NewReader(f.content))
 	case true:
 		pathSafe := shellescape.Quote(f.path)
-		err = l.exec(ctx, &remote.Cmd{Command: fmt.Sprintf(`sh -c "touch %s && [ -f %s ]"`, pathSafe, pathSafe)})
+		err = l.exec(ctx, &remote.Cmd{
+			Command: fmt.Sprintf(`{ touch %s && [ -f %s ] ;}`, pathSafe, pathSafe),
+		})
 	}
 	if err != nil {
 		return
