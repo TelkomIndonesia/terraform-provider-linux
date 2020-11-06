@@ -207,6 +207,9 @@ func (h handlerScriptResource) getChangedKeys(rd *schema.ResourceData) (ks []str
 }
 
 func (h handlerScriptResource) shouldIgnoreUpdate(rd *schema.ResourceData) bool {
+	if _, ok := rd.GetOk(attrScriptLifecycleCommands + ".0." + attrScriptLifecycleCommandUpdate); !ok {
+		return true
+	}
 	for _, k := range h.getChangedKeys(rd) {
 		if k != attrScriptLifecycleCommands+".0."+attrScriptLifecycleCommandCreate &&
 			k != attrScriptLifecycleCommands+".0."+attrScriptLifecycleCommandDelete {
@@ -267,7 +270,7 @@ func (h handlerScriptResource) CustomizeDiff(c context.Context, rd *schema.Resou
 
 	if f, _ := rd.GetChange(attrScriptReadFailed); cast.ToBool(f) &&
 		!rd.HasChange(attrScriptLifecycleCommands+".0."+attrScriptLifecycleCommandRead) {
-		_ = rd.ForceNew(attrScriptReadFailed)
+		_ = rd.ForceNew(attrScriptReadFailed) // read failed and read script not updated
 	}
 	if _, ok := rd.GetOk(attrScriptLifecycleCommands + ".0." + attrScriptLifecycleCommandUpdate); ok {
 		return
