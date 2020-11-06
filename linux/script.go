@@ -72,7 +72,7 @@ func (sc *script) exec(ctx context.Context) (res string, err error) {
 		},
 	)
 	if err != nil {
-		err = fmt.Errorf("stderr: %s, error: %v", stderr, err)
+		err = fmt.Errorf("stderr: %s, error: %w", stderr, err)
 		return
 	}
 	return stdout.String(), nil

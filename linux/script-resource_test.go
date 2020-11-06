@@ -2,6 +2,7 @@ package linux
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	"github.com/MakeNowJust/heredoc"
@@ -300,6 +301,208 @@ func testAccLinuxScriptNoUpdateConfig(t *testing.T, conf tfConf) (s string) {
 			}
 			{{- end }}
 		`)
+	s, err := conf.compile(tf)
+	t.Log(s)
+	require.NoError(t, err, "compile template failed")
+	return
+}
+
+func TestAccLinuxScriptUpdatedScript(t *testing.T) {
+	failedCreateDueToReadError := tfConf{
+		Provider: testAccProvider,
+		Script: tfScript{
+			LifecycleCommands: tfmap{
+				attrScriptLifecycleCommandCreate: `"echo"`,
+				attrScriptLifecycleCommandRead:   `"cat /nonexist"`,
+				attrScriptLifecycleCommandUpdate: `"echo"`,
+				attrScriptLifecycleCommandDelete: `"echo"`,
+			},
+		},
+	}
+	fixedRead := tfConf{
+		Provider: testAccProvider,
+		Script: tfScript{
+			LifecycleCommands: tfmap{
+				attrScriptLifecycleCommandCreate: `"echo"`,
+				attrScriptLifecycleCommandRead:   `"echo '/nonexist'"`,
+				attrScriptLifecycleCommandUpdate: `"echo"`,
+				attrScriptLifecycleCommandDelete: `"echo"`,
+			},
+		},
+	}
+	updatedReadButError := tfConf{
+		Provider: testAccProvider,
+		Script: tfScript{
+			LifecycleCommands: tfmap{
+				attrScriptLifecycleCommandCreate: `"echo"`,
+				attrScriptLifecycleCommandRead:   `"cat '/nonexist'"`,
+				attrScriptLifecycleCommandUpdate: `"echo 'is now exist' >> '/nonexist' "`,
+				attrScriptLifecycleCommandDelete: `"rm '/nonexist'"`,
+			},
+		},
+	}
+	restoredRead := tfConf{
+		Provider: testAccProvider,
+		Script: updatedReadButError.Script.Copy(func(sc *tfScript) {
+			sc.LifecycleCommands.
+				With(attrScriptLifecycleCommandRead, fixedRead.Script.LifecycleCommands[attrScriptLifecycleCommandRead])
+		}),
+	}
+	onlyUpdateCreate := tfConf{
+		Provider: testAccProvider,
+		Script: restoredRead.Script.Copy(func(sc *tfScript) {
+			sc.LifecycleCommands.With(attrScriptLifecycleCommandCreate, `"echo               "`)
+		}),
+	}
+	onlyUpdateDelete := tfConf{
+		Provider: testAccProvider,
+		Script: restoredRead.Script.Copy(func(sc *tfScript) {
+			sc.LifecycleCommands.With(attrScriptLifecycleCommandDelete, `"rm       '/nonexist'"`)
+		}),
+	}
+
+	resource.Test(t, resource.TestCase{
+		ExternalProviders: map[string]resource.ExternalProvider{"null": {}},
+		PreCheck:          testAccPreCheckConnection(t),
+		Providers:         testAccProviders,
+		Steps: []resource.TestStep{
+			{
+				Config:      testAccLinuxScriptUpdatedScriptConfig(t, failedCreateDueToReadError),
+				ExpectError: regexp.MustCompile(`cat: can't open`),
+			},
+			{
+				Config: testAccLinuxScriptUpdatedScriptConfig(t, fixedRead),
+			},
+			{
+				Config:      testAccLinuxScriptUpdatedScriptConfig(t, updatedReadButError),
+				ExpectError: regexp.MustCompile(`cat: can't open`),
+			},
+			{
+				Config: testAccLinuxScriptUpdatedScriptConfig(t, restoredRead),
+			},
+			{
+				Config: testAccLinuxScriptUpdatedScriptConfig(t, onlyUpdateCreate),
+			},
+			{
+				Config: testAccLinuxScriptUpdatedScriptConfig(t, onlyUpdateDelete),
+			},
+		},
+	})
+}
+
+func testAccLinuxScriptUpdatedScriptConfig(t *testing.T, conf tfConf) (s string) {
+	tf := heredoc.Doc(`
+		provider "linux" {
+			{{- .Provider.Serialize | nindent 4 }}
+		}
+		resource "linux_script" "script" {
+			{{- .Script.Serialize | nindent 4 }}
+		}
+	`)
+	s, err := conf.compile(tf)
+	t.Log(s)
+	require.NoError(t, err, "compile template failed")
+	return
+}
+
+func TestAccLinuxScriptFailedRead(t *testing.T) {
+	// TODO: a proper provisioner to check
+	createFile := tfConf{
+		Provider: testAccProvider,
+		Script: tfScript{
+			LifecycleCommands: tfmap{
+				attrScriptLifecycleCommandCreate: `"echo $CONTENT > $FILE"`,
+				attrScriptLifecycleCommandRead:   `"cat $FILE"`,
+				attrScriptLifecycleCommandUpdate: `"echo $CONTENT > $FILE"`,
+				attrScriptLifecycleCommandDelete: `"rm $FILE || true"`,
+			},
+			Environment: tfmap{
+				"FILE":    `"/tmp/linux-test"`,
+				"CONTENT": `"test"`,
+			},
+		},
+		Extra: tfmap{
+			"ShouldDelete": "true",
+		},
+	}
+	recreateFile := tfConf{
+		Provider: testAccProvider,
+		Script:   createFile.Script.Copy(),
+	}
+	fixedReadUpdatedContentScript := tfConf{
+		Provider: testAccProvider,
+		Script: createFile.Script.Copy(
+			func(sc *tfScript) {
+				sc.LifecycleCommands.
+					With(attrScriptLifecycleCommandRead, `"cat $FILE || echo"`).
+					With(attrScriptLifecycleCommandDelete, `"rm $FILE"`)
+			},
+			func(sc *tfScript) {
+				sc.Environment.With("CONTENT", `"test2"`)
+			},
+		),
+	}
+
+	resource.Test(t, resource.TestCase{
+		ExternalProviders: map[string]resource.ExternalProvider{"null": {}},
+		PreCheck:          testAccPreCheckConnection(t),
+		Providers:         testAccProviders,
+		Steps: []resource.TestStep{
+			{
+				Config:             testAccLinuxScriptFailedReadConfig(t, createFile),
+				ExpectNonEmptyPlan: true,
+			},
+			{
+				Config: testAccLinuxScriptFailedReadConfig(t, recreateFile),
+				Check:  resource.TestCheckResourceAttr("linux_script.create_file", "read_failed", "false"),
+			},
+		},
+	})
+	resource.Test(t, resource.TestCase{
+		ExternalProviders: map[string]resource.ExternalProvider{"null": {}},
+		PreCheck:          testAccPreCheckConnection(t),
+		Providers:         testAccProviders,
+		Steps: []resource.TestStep{
+			{
+				Config:             testAccLinuxScriptFailedReadConfig(t, createFile),
+				ExpectNonEmptyPlan: true,
+			},
+			{
+				Config:             testAccLinuxScriptFailedReadConfig(t, fixedReadUpdatedContentScript),
+				Check:              resource.TestCheckResourceAttr("linux_script.create_file", "read_failed", "false"),
+				ExpectNonEmptyPlan: true,
+			},
+			{
+				Config: testAccLinuxScriptFailedReadConfig(t, fixedReadUpdatedContentScript),
+				Check:  resource.TestCheckResourceAttr("linux_script.create_file", "read_failed", "false"),
+			},
+		},
+	})
+}
+
+func testAccLinuxScriptFailedReadConfig(t *testing.T, conf tfConf) (s string) {
+	tf := heredoc.Doc(`
+		provider "linux" {
+			{{- .Provider.Serialize | nindent 4 }}
+		}
+		resource "linux_script" "create_file" {
+			{{- .Script.Serialize | nindent 4 }}
+
+			{{ if .Extra.ShouldDelete -}}
+			connection {
+				type = "ssh"
+				{{- .Provider.Serialize | nindent 8 }}
+			}
+			provisioner "remote-exec" {
+				inline = [
+					<<-EOF
+						rm ${self.environment.FILE}
+					EOF
+				]
+			}
+			{{- end }}
+		}
+	`)
 	s, err := conf.compile(tf)
 	t.Log(s)
 	require.NoError(t, err, "compile template failed")

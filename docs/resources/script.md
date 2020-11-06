@@ -35,8 +35,8 @@ The following arguments are supported:
 The following arguments are supported:
 
 - `create` - (Required, string) Commands that will be execued in Create phase.
-- `read` - (Required, string) Commands that will be execued in Read phase and after execution of `create` or `update` commands. Terraform will record the output of these commands inside `output` attributes and trigger update/recreation when it changes. If the result of running these commands is empty string, the resource is considered as destroyed.
-- `update` - (Optional, string) Commands that will be execued in Update phase. Previous `output` are available from stdin. Omiting this will disable Update phase and trigger resource recreation (Delete -> Create) each time terraform detect changes.
+- `read` - (Required, string) Commands that will be execued in Read phase and after execution of `create` or `update` commands. Terraform will record the output of these commands inside `output` attributes and trigger update/recreation when it changes. If the result of running these commands is empty string, the resource is considered as destroyed. If instead execution error is produced, then it will trigger resource recreation, unless the script is updated and `update` is not empty.
+- `update` - (Optional, string) Commands that will be execued in Update phase. Previous `output` are available from stdin. If `read` is updated, the next `terraform apply` will only execute the new `read` script. If `create` and/or `update` is the only things that are changed, then nothing is executed. Omiting this will disable Update phase and trigger resource recreation (Delete -> Create) each time terraform detect changes.
 - `delete` - (Required, string) Commands that will be execued in Delete phase.
 
 ## Attribute Reference
