@@ -126,10 +126,6 @@ func (h handlerScriptResource) read(ctx context.Context, rd *schema.ResourceData
 	if err != nil {
 		return
 	}
-	if res == "" {
-		rd.SetId("")
-		return
-	}
 	if err = rd.Set(attrScriptOutput, res); err != nil {
 		return
 	}
@@ -146,9 +142,15 @@ func (h handlerScriptResource) Read(ctx context.Context, rd *schema.ResourceData
 		return
 	}
 
-	_ = rd.Set(attrScriptReadFailed, false)
 	new := cast.ToString(rd.Get(attrScriptOutput))
+	if new == "" {
+		rd.SetId("")
+		return
+	}
 	if err := rd.Set(attrScriptDirty, old != new); err != nil {
+		return diag.FromErr(err)
+	}
+	if err := rd.Set(attrScriptReadFailed, false); err != nil {
 		return diag.FromErr(err)
 	}
 	return
@@ -263,13 +265,18 @@ func (h handlerScriptResource) CustomizeDiff(c context.Context, rd *schema.Resou
 		return
 	}
 
-	if n, _ := rd.GetChange(attrScriptReadFailed); cast.ToBool(n) && !rd.HasChange(attrScriptLifecycleCommands+".0."+attrScriptLifecycleCommandRead) {
+	if f, _ := rd.GetChange(attrScriptReadFailed); cast.ToBool(f) &&
+		!rd.HasChange(attrScriptLifecycleCommands+".0."+attrScriptLifecycleCommandRead) {
 		_ = rd.ForceNew(attrScriptReadFailed)
 	}
 	if _, ok := rd.GetOk(attrScriptLifecycleCommands + ".0." + attrScriptLifecycleCommandUpdate); ok {
 		return
 	}
 	for _, key := range rd.GetChangedKeysPrefix("") {
+		if key == attrScriptLifecycleCommands+".0."+attrScriptLifecycleCommandCreate ||
+			key == attrScriptLifecycleCommands+".0."+attrScriptLifecycleCommandDelete {
+			continue // should not trigger force new
+		}
 		if strings.HasPrefix(key, attrScriptTriggers) {
 			continue // already force new
 		}
