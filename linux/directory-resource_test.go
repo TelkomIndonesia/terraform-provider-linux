@@ -14,10 +14,9 @@ func TestAccLinuxDirectoryBasic(t *testing.T) {
 		Provider:  testAccProvider,
 		Directory: tNewTFMapDirectory().Without("owner", "group", "mode"),
 	}
-	conf2 := tfConf{
-		Provider:  testAccProvider,
-		Directory: conf1.Directory.Copy().With("mode", "700"),
-	}
+	conf2 := conf1.Copy(func(tc *tfConf) {
+		tc.Directory.With("mode", "700")
+	})
 	conf3 := tfConf{
 		Provider:  testAccProvider,
 		Directory: tNewTFMapDirectory(),
@@ -124,49 +123,46 @@ func testAccLinuxDirectoryBasicConfig(t *testing.T, conf tfConf) (s string) {
 	return
 }
 
-func TestAccLinuxDirectoryOverride(t *testing.T) {
+func TestAccLinuxDirectoryOverwrite(t *testing.T) {
 	conf1 := tfConf{
 		Provider:  testAccProvider,
 		Directory: tNewTFMapDirectory(),
 	}
-	conf2 := tfConf{
-		Provider:  testAccProvider,
-		Directory: conf1.Directory.Copy().With("overwrite", "true"),
-	}
+	conf2 := conf1.Copy(func(tc *tfConf) {
+		tc.Directory.With("overwrite", "true")
+	})
 	conf3 := tfConf{
 		Provider:  testAccProvider,
 		Directory: tNewTFMapDirectory(),
 		Extra:     tfmap{"path_previous": conf1.Directory["path"]},
 	}
-	conf4 := tfConf{
-		Provider:  testAccProvider,
-		Directory: conf3.Directory.Copy().With("overwrite", "true"),
-		Extra:     tfmap{"path_previous": conf1.Directory["path"]},
-	}
+	conf4 := conf3.Copy(func(tc *tfConf) {
+		tc.Directory.With("overwrite", "true")
+	})
 	resource.Test(t, resource.TestCase{
 		ExternalProviders: map[string]resource.ExternalProvider{"null": {}},
 		PreCheck:          testAccPreCheckConnection(t),
 		Providers:         testAccProviders,
 		Steps: []resource.TestStep{
 			{
-				Config:      testAccLinuxDirectoryeOverrideConfig(t, conf1),
+				Config:      testAccLinuxDirectoryeOverwriteConfig(t, conf1),
 				ExpectError: regexp.MustCompile(" exist"),
 			},
 			{
-				Config: testAccLinuxDirectoryeOverrideConfig(t, conf2),
+				Config: testAccLinuxDirectoryeOverwriteConfig(t, conf2),
 			},
 			{
-				Config:      testAccLinuxDirectoryeOverrideConfig(t, conf3),
+				Config:      testAccLinuxDirectoryeOverwriteConfig(t, conf3),
 				ExpectError: regexp.MustCompile(" exist"),
 			},
 			{
-				Config: testAccLinuxDirectoryeOverrideConfig(t, conf4),
+				Config: testAccLinuxDirectoryeOverwriteConfig(t, conf4),
 			},
 		},
 	})
 }
 
-func testAccLinuxDirectoryeOverrideConfig(t *testing.T, conf tfConf) (s string) {
+func testAccLinuxDirectoryeOverwriteConfig(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 		provider "linux" {
 		    {{- .Provider.Serialize | nindent 4 }}

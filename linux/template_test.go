@@ -113,7 +113,7 @@ type tfScript struct {
 	LifecycleCommands    tfmap
 }
 
-func (t tfScript) Copy(modifers ...func(sc *tfScript)) (c tfScript) {
+func (t tfScript) Copy(modifers ...func(*tfScript)) (c tfScript) {
 	c.Triggers = t.Triggers.Copy()
 	c.Environment = t.Environment.Copy()
 	c.SensitiveEnvironment = t.SensitiveEnvironment.Copy()
@@ -190,4 +190,16 @@ type tfConf struct {
 
 func (c tfConf) compile(tmpl string) (string, error) {
 	return tCompileTemplate(tmpl, c)
+}
+
+func (c tfConf) Copy(modifers ...func(*tfConf)) (n tfConf) {
+	n.Provider = c.Provider.Copy()
+	n.File = c.File.Copy()
+	n.Directory = c.Directory.Copy()
+	n.Script = c.Script.Copy()
+	n.Extra = c.Extra.Copy()
+	for _, m := range modifers {
+		m(&n)
+	}
+	return
 }
