@@ -14,10 +14,9 @@ func TestAccLinuxFileBasic(t *testing.T) {
 		Provider: testAccProvider,
 		File:     tNewTFMapFile().Without("owner", "group", "mode"),
 	}
-	conf2 := tfConf{
-		Provider: testAccProvider,
-		File:     conf1.File.Copy().With("content", `"test"`),
-	}
+	conf2 := conf1.Copy(func(tc *tfConf) {
+		tc.File.With("content", `"test"`)
+	})
 	conf3 := tfConf{
 		Provider: testAccProvider,
 		File:     tNewTFMapFile(),
@@ -116,20 +115,17 @@ func TestAccLinuxFileOverride(t *testing.T) {
 		Provider: testAccProvider,
 		File:     tNewTFMapFile(),
 	}
-	conf2 := tfConf{
-		Provider: testAccProvider,
-		File:     conf1.File.Copy().With("overwrite", "true"),
-	}
+	conf2 := conf1.Copy(func(tc *tfConf) {
+		tc.File.With("overwrite", "true")
+	})
 	conf3 := tfConf{
 		Provider: testAccProvider,
 		File:     tNewTFMapFile(),
 		Extra:    tfmap{"path_previous": conf1.File["path"]},
 	}
-	conf4 := tfConf{
-		Provider: testAccProvider,
-		File:     conf3.File.Copy().With("overwrite", "true"),
-		Extra:    tfmap{"path_previous": conf1.File["path"]},
-	}
+	conf4 := conf3.Copy(func(tc *tfConf) {
+		tc.File.With("overwrite", "true")
+	})
 
 	resource.Test(t, resource.TestCase{
 		ExternalProviders: map[string]resource.ExternalProvider{"null": {}},

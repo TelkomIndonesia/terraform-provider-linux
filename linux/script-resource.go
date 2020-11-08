@@ -3,6 +3,7 @@ package linux
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
@@ -25,6 +26,7 @@ const (
 	attrScriptWorkingDirectory       = "working_directory"
 	attrScriptDirty                  = "dirty"
 	attrScriptReadFailed             = "read_failed"
+	attrScriptReadError              = "read_error"
 	attrScriptOutput                 = "output"
 )
 
@@ -82,6 +84,12 @@ var schemaScriptResource = map[string]*schema.Schema{
 		Optional: true,
 		Default:  ".",
 	},
+
+	attrScriptOutput: {
+		Type:     schema.TypeString,
+		Computed: true,
+	},
+
 	attrScriptDirty: {
 		Type:     schema.TypeBool,
 		Optional: true,
@@ -92,9 +100,10 @@ var schemaScriptResource = map[string]*schema.Schema{
 		Optional: true,
 		Default:  false,
 	},
-	attrScriptOutput: {
+	attrScriptReadError: {
 		Type:     schema.TypeString,
-		Computed: true,
+		Optional: true,
+		Default:  "",
 	},
 }
 
@@ -135,22 +144,19 @@ func (h handlerScriptResource) read(ctx context.Context, rd *schema.ResourceData
 func (h handlerScriptResource) Read(ctx context.Context, rd *schema.ResourceData, meta interface{}) (d diag.Diagnostics) {
 	old := cast.ToString(rd.Get(attrScriptOutput))
 
-	err := h.read(ctx, rd, meta.(*linux))
 	var errExit *remote.ExitError
-	if errors.As(err, &errExit) {
+	switch err := h.read(ctx, rd, meta.(*linux)); {
+	case errors.As(err, &errExit):
 		_ = rd.Set(attrScriptReadFailed, true)
+		_ = rd.Set(attrScriptReadError, err.Error())
 		return
-	}
-
-	new := cast.ToString(rd.Get(attrScriptOutput))
-	if new == "" {
-		rd.SetId("")
-		return
-	}
-	if err := rd.Set(attrScriptDirty, old != new); err != nil {
+	case err != nil:
 		return diag.FromErr(err)
 	}
-	if err := rd.Set(attrScriptReadFailed, false); err != nil {
+	_ = rd.Set(attrScriptReadFailed, false)
+
+	new := cast.ToString(rd.Get(attrScriptOutput))
+	if err := rd.Set(attrScriptDirty, old != new); err != nil {
 		return diag.FromErr(err)
 	}
 	return
@@ -176,15 +182,27 @@ func (h handlerScriptResource) Create(ctx context.Context, rd *schema.ResourceDa
 }
 
 // WARN: see https://github.com/hashicorp/terraform-plugin-sdk/issues/476
-func (h handlerScriptResource) restoreOldResourceData(rd *schema.ResourceData) (err error) {
-	for _, k := range []string{
+func (h handlerScriptResource) restoreOldResourceData(rd *schema.ResourceData, except ...string) (err error) {
+	var exceptMap = map[string]bool{}
+	for _, k := range except {
+		exceptMap[k] = true
+	}
+	toRestore := []string{
 		attrScriptLifecycleCommands,
 		attrScriptEnvironment,
 		attrScriptSensitiveEnvironment,
 		attrScriptInterpreter,
 		attrScriptWorkingDirectory,
 		attrScriptOutput,
-	} {
+		attrScriptDirty,
+		attrScriptReadFailed,
+		attrScriptReadError,
+	}
+
+	for _, k := range toRestore {
+		if exceptMap[k] {
+			continue
+		}
 		o, _ := rd.GetChange(k)
 		err = rd.Set(k, o)
 		if err != nil {
@@ -194,48 +212,12 @@ func (h handlerScriptResource) restoreOldResourceData(rd *schema.ResourceData) (
 	return
 }
 
-func (h handlerScriptResource) getChangedKeys(rd *schema.ResourceData) (ks []string) {
-	if rd == nil || rd.State() == nil {
-		return
-	}
-	for k := range rd.State().Attributes {
-		if rd.HasChange(k) {
-			ks = append(ks, k)
-		}
-	}
-	return
-}
-
-func (h handlerScriptResource) shouldIgnoreUpdate(rd *schema.ResourceData) bool {
-	if _, ok := rd.GetOk(attrScriptLifecycleCommands + ".0." + attrScriptLifecycleCommandUpdate); !ok {
-		return true
-	}
-	for _, k := range h.getChangedKeys(rd) {
-		if k != attrScriptLifecycleCommands+".0."+attrScriptLifecycleCommandCreate &&
-			k != attrScriptLifecycleCommands+".0."+attrScriptLifecycleCommandDelete {
-			return false
-		}
-	}
-	return true
-}
-
 func (h handlerScriptResource) Update(ctx context.Context, rd *schema.ResourceData, meta interface{}) (d diag.Diagnostics) {
-	if h.shouldIgnoreUpdate(rd) {
-		return
-	}
-
-	if rd.HasChange(attrScriptLifecycleCommands + ".0." + attrScriptLifecycleCommandRead) {
-		scNew := rd.Get(attrScriptLifecycleCommands)
-		_ = h.restoreOldResourceData(rd)
-
-		scOld := rd.Get(attrScriptLifecycleCommands)
-		_ = rd.Set(attrScriptLifecycleCommands, scNew)
-
-		err := h.read(ctx, rd, meta.(*linux))
-		if err != nil {
-			_ = rd.Set(attrScriptLifecycleCommands, scOld)
-			d = diag.FromErr(err)
-		}
+	if rd.HasChange(attrScriptLifecycleCommands) {
+		// mimic the behaviour when terraform provider is updated,
+		// that is no old logic are executed and
+		// the new logic are run with the existing state and diff
+		_ = h.restoreOldResourceData(rd, attrScriptLifecycleCommands)
 		return
 	}
 
@@ -265,35 +247,48 @@ func (h handlerScriptResource) Delete(ctx context.Context, rd *schema.ResourceDa
 
 func (h handlerScriptResource) CustomizeDiff(c context.Context, rd *schema.ResourceDiff, meta interface{}) (err error) {
 	if rd.Id() == "" {
+		return // no state
+	}
+
+	if rd.HasChange(attrScriptLifecycleCommands) {
+		var forbidden []string
+		for _, key := range rd.GetChangedKeysPrefix("") {
+			if !strings.HasPrefix(key, attrScriptLifecycleCommands) &&
+				!strings.HasPrefix(key, attrScriptReadError) &&
+				!strings.HasPrefix(key, attrScriptReadFailed) {
+
+				forbidden = append(forbidden, key)
+			}
+		}
+		if len(forbidden) > 0 {
+			return fmt.Errorf("update to `%s` should not be combined with update to other arguments: %s", attrScriptLifecycleCommands, strings.Join(forbidden, ","))
+		}
+		return // updated commands. let Update handle it.
+	}
+	if f, _ := rd.GetChange(attrScriptReadFailed); cast.ToBool(f) {
+		_ = rd.ForceNew(attrScriptReadFailed) // read failed but no update in commands, force recreation
 		return
 	}
 
-	if f, _ := rd.GetChange(attrScriptReadFailed); cast.ToBool(f) &&
-		!rd.HasChange(attrScriptLifecycleCommands+".0."+attrScriptLifecycleCommandRead) {
-		_ = rd.ForceNew(attrScriptReadFailed) // read failed and read script not updated
-	}
 	if _, ok := rd.GetOk(attrScriptLifecycleCommands + ".0." + attrScriptLifecycleCommandUpdate); ok {
-		return
+		return // updateable
 	}
+
 	for _, key := range rd.GetChangedKeysPrefix("") {
-		if key == attrScriptLifecycleCommands+".0."+attrScriptLifecycleCommandRead ||
-			key == attrScriptLifecycleCommands+".0."+attrScriptLifecycleCommandDelete {
-			continue // should not trigger force new
-		}
 		if strings.HasPrefix(key, attrScriptTriggers) {
-			continue // already force new
+			continue // already force new.
 		}
 
 		// need to remove index from map and list
 		switch {
 		case strings.HasPrefix(key, attrScriptEnvironment):
-			key = strings.Split(key, ".")[0]
+			fallthrough
 		case strings.HasPrefix(key, attrScriptSensitiveEnvironment):
-			key = strings.Split(key, ".")[0]
+			fallthrough
 		case strings.HasPrefix(key, attrScriptInterpreter):
-			key = strings.Split(key, ".")[0]
+			parts := strings.Split(key, ".")
+			key = strings.Join(parts[:len(parts)-1], ".")
 		}
-
 		err = rd.ForceNew(key)
 		if err != nil {
 			return

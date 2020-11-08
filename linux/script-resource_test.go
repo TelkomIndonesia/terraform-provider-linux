@@ -307,15 +307,128 @@ func testAccLinuxScriptNoUpdateConfig(t *testing.T, conf tfConf) (s string) {
 	return
 }
 
+func TestAccLinuxScriptUpdatedScript(t *testing.T) {
+	echo := tfConf{
+		Provider: testAccProvider,
+		Script: tfScript{
+			LifecycleCommands: tfmap{
+				attrScriptLifecycleCommandCreate: `"echo -n"`,
+				attrScriptLifecycleCommandRead:   `"echo -n"`,
+				attrScriptLifecycleCommandUpdate: `"echo -n"`,
+				attrScriptLifecycleCommandDelete: `"echo -n"`,
+			},
+		},
+	}
+	readUpdated := echo.Copy(func(tc *tfConf) {
+		tc.Script.LifecycleCommands.With(attrScriptLifecycleCommandRead, `"echo -n true"`)
+	})
+	createDeleteUpdated := readUpdated.Copy(func(tc *tfConf) {
+		tc.Script.LifecycleCommands.
+			With(attrScriptLifecycleCommandCreate, `"echo -n true"`).
+			With(attrScriptLifecycleCommandDelete, `"echo -n true"`)
+	})
+	updateUpdated := createDeleteUpdated.Copy(func(tc *tfConf) {
+		tc.Script.LifecycleCommands.
+			With(attrScriptLifecycleCommandUpdate, `"echo -n true"`)
+	})
+	createFileButNotAllowed := updateUpdated.Copy(func(tc *tfConf) {
+		// expect to run create only
+		tc.Script.LifecycleCommands.With(attrScriptLifecycleCommandCreate, `"echo -n $CONTENT > $FILE"`)
+		tc.Script.LifecycleCommands.With(attrScriptLifecycleCommandRead, `"cat $FILE"`)
+		tc.Script.LifecycleCommands.Without(attrScriptLifecycleCommandUpdate)
+		tc.Script.Environment.With("FILE", `"/tmp/hello"`)
+		tc.Script.Environment.With("CONTENT", `"world"`)
+	})
+	createFilePt1 := createFileButNotAllowed.Copy(func(tc *tfConf) {
+		tc.Script.Environment.Without("FILE", "CONTENT")
+	})
+	createFilePt2 := createFilePt1.Copy(func(tc *tfConf) {
+		tc.Script.Environment = createFileButNotAllowed.Script.Environment.Copy()
+	})
+	UpdateFilePt1 := createFilePt2.Copy(func(tc *tfConf) {
+		tc.Script.LifecycleCommands.With(attrScriptLifecycleCommandUpdate, `"echo -n '\n'$CONTENT >> $FILE"`)
+		tc.Script.LifecycleCommands.With(attrScriptLifecycleCommandDelete, `"rm $FILE"`)
+	})
+	UpdateFilePt2 := UpdateFilePt1.Copy(func(tc *tfConf) {
+		tc.Script.Environment = createFilePt2.Script.Environment.Copy().With("CONTENT", `"world1"`)
+	})
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:  testAccPreCheckConnection(t),
+		Providers: testAccProviders,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccLinuxScriptUpdatedScriptConfig(t, echo),
+				Check:  resource.TestCheckResourceAttr("linux_script.script", "output", ""),
+			},
+			{
+				Config:             testAccLinuxScriptUpdatedScriptConfig(t, readUpdated),
+				ExpectNonEmptyPlan: true,
+			},
+			{
+				Config: testAccLinuxScriptUpdatedScriptConfig(t, readUpdated),
+				Check:  resource.TestCheckResourceAttr("linux_script.script", "output", "true"),
+			},
+			{
+				Config: testAccLinuxScriptUpdatedScriptConfig(t, createDeleteUpdated),
+				Check:  resource.TestCheckResourceAttr("linux_script.script", "output", "true"),
+			},
+			{
+				Config: testAccLinuxScriptUpdatedScriptConfig(t, updateUpdated),
+				Check:  resource.TestCheckResourceAttr("linux_script.script", "output", "true"),
+			},
+			{
+				Config:      testAccLinuxScriptUpdatedScriptConfig(t, createFileButNotAllowed),
+				ExpectError: regexp.MustCompile(`should not be combined with update to other arguments`),
+			},
+			{
+				Config:      testAccLinuxScriptUpdatedScriptConfig(t, createFileButNotAllowed),
+				ExpectError: regexp.MustCompile(`should not be combined with update to other arguments`),
+			},
+			{
+				Config:             testAccLinuxScriptUpdatedScriptConfig(t, createFilePt1),
+				Check:              resource.TestCheckResourceAttr("linux_script.script", "output", "true"),
+				ExpectNonEmptyPlan: true,
+			},
+			{
+				Config: testAccLinuxScriptUpdatedScriptConfig(t, createFilePt2),
+				Check:  resource.TestCheckResourceAttr("linux_script.script", "output", "world"),
+			},
+			{
+				Config: testAccLinuxScriptUpdatedScriptConfig(t, UpdateFilePt1),
+				Check:  resource.TestCheckResourceAttr("linux_script.script", "output", "world"),
+			},
+			{
+				Config: testAccLinuxScriptUpdatedScriptConfig(t, UpdateFilePt2),
+				Check:  resource.TestCheckResourceAttr("linux_script.script", "output", "world\nworld1"),
+			},
+		},
+	})
+}
+
+func testAccLinuxScriptUpdatedScriptConfig(t *testing.T, conf tfConf) (s string) {
+	tf := heredoc.Doc(`
+		provider "linux" {
+			{{- .Provider.Serialize | nindent 4 }}
+		}
+		resource "linux_script" "script" {
+			{{- .Script.Serialize | nindent 4 }}
+		}
+	`)
+	s, err := conf.compile(tf)
+	t.Log(s)
+	require.NoError(t, err, "compile template failed")
+	return
+}
+
 func TestAccLinuxScriptFailedRead(t *testing.T) {
-	// TODO: a proper provisioner to check
 	createFile := tfConf{
 		Provider: testAccProvider,
 		Script: tfScript{
 			LifecycleCommands: tfmap{
 				attrScriptLifecycleCommandCreate: `"echo -n $CONTENT > $FILE"`,
 				attrScriptLifecycleCommandRead:   `"cat $FILE"`,
-				attrScriptLifecycleCommandUpdate: `"echo -n $CONTENT.updated > $FILE"`,
+				attrScriptLifecycleCommandUpdate: `"echo -n '\n'$CONTENT >> $FILE"`,
 				attrScriptLifecycleCommandDelete: `"rm $FILE || true"`,
 			},
 			Environment: tfmap{
@@ -327,23 +440,23 @@ func TestAccLinuxScriptFailedRead(t *testing.T) {
 			"ShouldDelete": "true",
 		},
 	}
-	recreateFile := tfConf{
-		Provider: testAccProvider,
-		Script:   createFile.Script.Copy(),
-	}
-	fixedReadUpdatedContentScript := tfConf{
-		Provider: testAccProvider,
-		Script: createFile.Script.Copy(
-			func(sc *tfScript) {
-				sc.LifecycleCommands.
-					With(attrScriptLifecycleCommandRead, `"cat $FILE || echo"`).
-					With(attrScriptLifecycleCommandDelete, `"rm $FILE"`)
-			},
-			func(sc *tfScript) {
-				sc.Environment.With("CONTENT", `"test2"`)
-			},
-		),
-	}
+	scriptUnchanged := createFile.Copy(func(tc *tfConf) {
+		tc.Extra.Without("ShouldDelete")
+	})
+
+	scriptUpdatedWithOtherArguments := createFile.Copy(func(tc *tfConf) {
+		tc.Extra.Without("ShouldDelete")
+		tc.Script.LifecycleCommands.
+			With(attrScriptLifecycleCommandRead, `"cat $FILE || echo"`).
+			With(attrScriptLifecycleCommandDelete, `"rm $FILE"`)
+		tc.Script.Environment.With("CONTENT", `"test2"`)
+	})
+	scriptUpdated := scriptUpdatedWithOtherArguments.Copy(func(tc *tfConf) {
+		tc.Script.Environment = createFile.Script.Environment
+	})
+	contentUpdated := scriptUpdated.Copy(func(tc *tfConf) {
+		tc.Script.Environment = scriptUpdatedWithOtherArguments.Script.Environment
+	})
 
 	resource.Test(t, resource.TestCase{
 		ExternalProviders: map[string]resource.ExternalProvider{"null": {}},
@@ -355,7 +468,7 @@ func TestAccLinuxScriptFailedRead(t *testing.T) {
 				ExpectNonEmptyPlan: true,
 			},
 			{
-				Config: testAccLinuxScriptFailedReadConfig(t, recreateFile),
+				Config: testAccLinuxScriptFailedReadConfig(t, scriptUnchanged),
 				Check:  resource.TestCheckResourceAttr("linux_script.create_file", "output", "test"),
 			},
 		},
@@ -370,12 +483,16 @@ func TestAccLinuxScriptFailedRead(t *testing.T) {
 				ExpectNonEmptyPlan: true,
 			},
 			{
-				Config:             testAccLinuxScriptFailedReadConfig(t, fixedReadUpdatedContentScript),
+				Config:      testAccLinuxScriptFailedReadConfig(t, scriptUpdatedWithOtherArguments),
+				ExpectError: regexp.MustCompile(`should not be combined with update to other arguments`),
+			},
+			{
+				Config:             testAccLinuxScriptFailedReadConfig(t, scriptUpdated),
 				ExpectNonEmptyPlan: true,
 			},
 			{
-				Config: testAccLinuxScriptFailedReadConfig(t, fixedReadUpdatedContentScript),
-				Check:  resource.TestCheckResourceAttr("linux_script.create_file", "output", "test2.updated"),
+				Config: testAccLinuxScriptFailedReadConfig(t, contentUpdated),
+				Check:  resource.TestCheckResourceAttr("linux_script.create_file", "output", "\ntest2"),
 			},
 		},
 	})
@@ -411,104 +528,6 @@ func testAccLinuxScriptFailedReadConfig(t *testing.T, conf tfConf) (s string) {
 		        ]
 		    }
 		    {{- end }}
-		}
-	`)
-	s, err := conf.compile(tf)
-	t.Log(s)
-	require.NoError(t, err, "compile template failed")
-	return
-}
-
-func TestAccLinuxScriptUpdatedScript(t *testing.T) {
-	failedCreateDueToReadError := tfConf{
-		Provider: testAccProvider,
-		Script: tfScript{
-			LifecycleCommands: tfmap{
-				attrScriptLifecycleCommandCreate: `"echo"`,
-				attrScriptLifecycleCommandRead:   `"cat /nonexist"`,
-				attrScriptLifecycleCommandUpdate: `"echo"`,
-				attrScriptLifecycleCommandDelete: `"echo"`,
-			},
-		},
-	}
-	fixedRead := tfConf{
-		Provider: testAccProvider,
-		Script: tfScript{
-			LifecycleCommands: tfmap{
-				attrScriptLifecycleCommandCreate: `"echo"`,
-				attrScriptLifecycleCommandRead:   `"echo '/nonexist'"`,
-				attrScriptLifecycleCommandUpdate: `"echo"`,
-				attrScriptLifecycleCommandDelete: `"echo"`,
-			},
-		},
-	}
-	updatedReadButError := tfConf{
-		Provider: testAccProvider,
-		Script: tfScript{
-			LifecycleCommands: tfmap{
-				attrScriptLifecycleCommandCreate: `"echo"`,
-				attrScriptLifecycleCommandRead:   `"cat '/nonexist'"`,
-				attrScriptLifecycleCommandUpdate: `"echo 'is now exist' >> '/nonexist' "`,
-				attrScriptLifecycleCommandDelete: `"rm '/nonexist'"`,
-			},
-		},
-	}
-	restoredRead := tfConf{
-		Provider: testAccProvider,
-		Script: updatedReadButError.Script.Copy(func(sc *tfScript) {
-			sc.LifecycleCommands.
-				With(attrScriptLifecycleCommandRead, fixedRead.Script.LifecycleCommands[attrScriptLifecycleCommandRead])
-		}),
-	}
-	onlyUpdateCreate := tfConf{
-		Provider: testAccProvider,
-		Script: restoredRead.Script.Copy(func(sc *tfScript) {
-			sc.LifecycleCommands.With(attrScriptLifecycleCommandCreate, `"echo               "`)
-		}),
-	}
-	onlyUpdateDelete := tfConf{
-		Provider: testAccProvider,
-		Script: restoredRead.Script.Copy(func(sc *tfScript) {
-			sc.LifecycleCommands.With(attrScriptLifecycleCommandDelete, `"rm       '/nonexist'"`)
-		}),
-	}
-
-	resource.Test(t, resource.TestCase{
-		ExternalProviders: map[string]resource.ExternalProvider{"null": {}},
-		PreCheck:          testAccPreCheckConnection(t),
-		Providers:         testAccProviders,
-		Steps: []resource.TestStep{
-			{
-				Config:      testAccLinuxScriptUpdatedScriptConfig(t, failedCreateDueToReadError),
-				ExpectError: regexp.MustCompile(`cat: can't open`),
-			},
-			{
-				Config: testAccLinuxScriptUpdatedScriptConfig(t, fixedRead),
-			},
-			{
-				Config:      testAccLinuxScriptUpdatedScriptConfig(t, updatedReadButError),
-				ExpectError: regexp.MustCompile(`cat: can't open`),
-			},
-			{
-				Config: testAccLinuxScriptUpdatedScriptConfig(t, restoredRead),
-			},
-			{
-				Config: testAccLinuxScriptUpdatedScriptConfig(t, onlyUpdateCreate),
-			},
-			{
-				Config: testAccLinuxScriptUpdatedScriptConfig(t, onlyUpdateDelete),
-			},
-		},
-	})
-}
-
-func testAccLinuxScriptUpdatedScriptConfig(t *testing.T, conf tfConf) (s string) {
-	tf := heredoc.Doc(`
-		provider "linux" {
-			{{- .Provider.Serialize | nindent 4 }}
-		}
-		resource "linux_script" "script" {
-			{{- .Script.Serialize | nindent 4 }}
 		}
 	`)
 	s, err := conf.compile(tf)

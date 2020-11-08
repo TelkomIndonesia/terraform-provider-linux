@@ -33,7 +33,7 @@ resource "linux_file" "file" {
     recycle_path = "/tmp/recycle"
 }
 
-resource "linux_script" "script" {
+resource "linux_script" "install_package" {
     lifecycle_commands {
         create = "apt update && apt install -y $PACKAGE_NAME=$PACKAGE_VERSION"
         read = "apt-cache policy $PACKAGE_NAME | grep 'Installed:' | grep -v '(none)' | awk '{ print $2 }' | xargs | tr -d '\n'"
