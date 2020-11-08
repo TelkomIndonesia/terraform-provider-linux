@@ -144,16 +144,21 @@ func (h handlerScriptResource) read(ctx context.Context, rd *schema.ResourceData
 func (h handlerScriptResource) Read(ctx context.Context, rd *schema.ResourceData, meta interface{}) (d diag.Diagnostics) {
 	old := cast.ToString(rd.Get(attrScriptOutput))
 
+	err := h.read(ctx, rd, meta.(*linux))
 	var errExit *remote.ExitError
-	switch err := h.read(ctx, rd, meta.(*linux)); {
+	switch {
 	case errors.As(err, &errExit):
 		_ = rd.Set(attrScriptReadFailed, true)
 		_ = rd.Set(attrScriptReadError, err.Error())
 		return
-	case err != nil:
+
+	default:
+		_ = rd.Set(attrScriptReadFailed, false)
+		_ = rd.Set(attrScriptReadError, "")
+	}
+	if err != nil {
 		return diag.FromErr(err)
 	}
-	_ = rd.Set(attrScriptReadFailed, false)
 
 	new := cast.ToString(rd.Get(attrScriptOutput))
 	if err := rd.Set(attrScriptDirty, old != new); err != nil {
