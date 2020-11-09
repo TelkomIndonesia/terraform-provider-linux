@@ -1,6 +1,7 @@
 package linux
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -49,9 +50,39 @@ type script struct {
 	stdin io.Reader
 }
 
+func (sc *script) scriptForUpload() (io.Reader, error) {
+	if len(sc.interpreter) == 0 {
+		return strings.NewReader(sc.body), nil
+	}
+
+	// prevent communicator from appending #!/bin/sh
+	reader := bufio.NewReader(strings.NewReader(sc.body))
+	prefix, err := reader.Peek(2)
+	if err != nil {
+		return nil, fmt.Errorf("Error reading script: %s", err)
+	}
+	var script bytes.Buffer
+	if string(prefix) != "#!" {
+		script.WriteString("#!\n")
+	}
+	_, _ = script.ReadFrom(reader)
+	return &script, nil
+}
+
+func (sc *script) upload(ctx context.Context) (path string, err error) {
+	path = shellescape.Quote(sc.l.scriptPath(ctx))
+	s, err := sc.scriptForUpload()
+	if err != nil {
+		return "", err
+	}
+	if err := sc.l.uploadScript(ctx, path, s); err != nil {
+		return "", err
+	}
+	return
+}
+
 func (sc *script) exec(ctx context.Context) (res string, err error) {
-	path := shellescape.Quote(sc.l.scriptPath(ctx))
-	err = sc.l.uploadScript(ctx, path, strings.NewReader(sc.body))
+	path, err := sc.upload(ctx)
 	if err != nil {
 		return
 	}
@@ -63,14 +94,12 @@ func (sc *script) exec(ctx context.Context) (res string, err error) {
 		sc.env.inline(), shellescape.QuoteCommand(append(sc.interpreter, path)),
 	)
 	stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
-	err = sc.l.exec(ctx,
-		&remote.Cmd{
-			Command: cmd,
-			Stdin:   sc.stdin,
-			Stdout:  stdout,
-			Stderr:  stderr,
-		},
-	)
+	err = sc.l.exec(ctx, &remote.Cmd{
+		Command: cmd,
+		Stdin:   sc.stdin,
+		Stdout:  stdout,
+		Stderr:  stderr,
+	})
 	if err != nil {
 		err = fmt.Errorf("stderr: %s; error: %w", stderr, err)
 		return
