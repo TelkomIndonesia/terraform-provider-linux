@@ -109,6 +109,44 @@ var schemaScriptResource = map[string]*schema.Schema{
 
 type handlerScriptResource struct{}
 
+func (h handlerScriptResource) attrCommands() map[string]bool {
+	return map[string]bool{attrScriptLifecycleCommands: true}
+}
+func (h handlerScriptResource) attrInputs() map[string]bool {
+	return map[string]bool{
+		attrScriptEnvironment:          true,
+		attrScriptSensitiveEnvironment: true,
+		attrScriptInterpreter:          true,
+		attrScriptWorkingDirectory:     true,
+	}
+}
+func (h handlerScriptResource) attrOutputs() map[string]bool {
+	return map[string]bool{attrScriptOutput: true}
+}
+func (h handlerScriptResource) attrInternal() map[string]bool {
+	return map[string]bool{
+		attrScriptDirty:      true,
+		attrScriptReadFailed: true,
+		attrScriptReadError:  true,
+	}
+}
+func (h handlerScriptResource) attrs() (m map[string]bool) {
+	m = make(map[string]bool)
+	for k := range h.attrCommands() {
+		m[k] = true
+	}
+	for k := range h.attrInputs() {
+		m[k] = true
+	}
+	for k := range h.attrOutputs() {
+		m[k] = true
+	}
+	for k := range h.attrInternal() {
+		m[k] = true
+	}
+	return
+}
+
 func (h handlerScriptResource) newScript(rd *schema.ResourceData, l *linux, attrLifeCycle string) (s *script) {
 	if rd == nil {
 		return
@@ -192,19 +230,8 @@ func (h handlerScriptResource) restoreOldResourceData(rd *schema.ResourceData, e
 	for _, k := range except {
 		exceptMap[k] = true
 	}
-	toRestore := []string{
-		attrScriptLifecycleCommands,
-		attrScriptEnvironment,
-		attrScriptSensitiveEnvironment,
-		attrScriptInterpreter,
-		attrScriptWorkingDirectory,
-		attrScriptOutput,
-		attrScriptDirty,
-		attrScriptReadFailed,
-		attrScriptReadError,
-	}
 
-	for _, k := range toRestore {
+	for k := range h.attrs() {
 		if exceptMap[k] {
 			continue
 		}
@@ -257,11 +284,8 @@ func (h handlerScriptResource) CustomizeDiff(c context.Context, rd *schema.Resou
 
 	if rd.HasChange(attrScriptLifecycleCommands) {
 		var forbidden []string
-		for _, key := range rd.GetChangedKeysPrefix("") {
-			if !strings.HasPrefix(key, attrScriptLifecycleCommands) &&
-				!strings.HasPrefix(key, attrScriptReadError) &&
-				!strings.HasPrefix(key, attrScriptReadFailed) {
-
+		for key := range h.attrInputs() {
+			if rd.HasChange(key) {
 				forbidden = append(forbidden, key)
 			}
 		}
@@ -270,8 +294,9 @@ func (h handlerScriptResource) CustomizeDiff(c context.Context, rd *schema.Resou
 		}
 		return // updated commands. let Update handle it.
 	}
+
 	if f, _ := rd.GetChange(attrScriptReadFailed); cast.ToBool(f) {
-		_ = rd.ForceNew(attrScriptReadFailed) // read failed but no update in commands, force recreation
+		_ = rd.ForceNew(attrScriptReadFailed) // read failed, force recreation
 		return
 	}
 
