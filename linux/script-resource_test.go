@@ -27,11 +27,9 @@ func TestAccLinuxScriptBasic(t *testing.T) {
 			},
 		},
 	}
-	conf2 := tfConf{
-		Provider: testAccProvider,
-		Script:   conf1.Script.Copy(),
-	}
-	conf2.Script.Environment = conf2.Script.Environment.With("FILE", fmt.Sprintf(`"/tmp/linux/%s"`, acctest.RandString(16)))
+	conf2 := conf1.Copy(func(tc *tfConf) {
+		tc.Script.Environment.With("FILE", fmt.Sprintf(`"/tmp/linux/%s"`, acctest.RandString(16)))
+	})
 
 	resource.Test(t, resource.TestCase{
 		ExternalProviders: map[string]resource.ExternalProvider{"null": {}},
@@ -352,6 +350,9 @@ func TestAccLinuxScriptUpdatedScript(t *testing.T) {
 	UpdateFilePt2 := UpdateFilePt1.Copy(func(tc *tfConf) {
 		tc.Script.Environment = createFilePt2.Script.Environment.Copy().With("CONTENT", `"world1"`)
 	})
+	interpreterUpdated := UpdateFilePt2.Copy(func(tc *tfConf) {
+		tc.Script.Interpreter = tfList{`"/bin/sh"`}
+	})
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:  testAccPreCheckConnection(t),
@@ -400,6 +401,10 @@ func TestAccLinuxScriptUpdatedScript(t *testing.T) {
 			},
 			{
 				Config: testAccLinuxScriptUpdatedScriptConfig(t, UpdateFilePt2),
+				Check:  resource.TestCheckResourceAttr("linux_script.script", "output", "world\nworld1"),
+			},
+			{
+				Config: testAccLinuxScriptUpdatedScriptConfig(t, interpreterUpdated),
 				Check:  resource.TestCheckResourceAttr("linux_script.script", "output", "world\nworld1"),
 			},
 		},

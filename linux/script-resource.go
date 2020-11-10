@@ -13,6 +13,10 @@ import (
 	"github.com/spf13/cast"
 )
 
+type haschange interface {
+	HasChange(key string) bool
+}
+
 const (
 	attrScriptLifecycleCommands      = "lifecycle_commands"
 	attrScriptLifecycleCommandCreate = "create"
@@ -107,16 +111,19 @@ var schemaScriptResource = map[string]*schema.Schema{
 	},
 }
 
-type handlerScriptResource struct{}
+type handlerScriptResource struct {
+}
 
 func (h handlerScriptResource) attrCommands() map[string]bool {
-	return map[string]bool{attrScriptLifecycleCommands: true}
+	return map[string]bool{
+		attrScriptLifecycleCommands: true,
+		attrScriptInterpreter:       true,
+	}
 }
 func (h handlerScriptResource) attrInputs() map[string]bool {
 	return map[string]bool{
 		attrScriptEnvironment:          true,
 		attrScriptSensitiveEnvironment: true,
-		attrScriptInterpreter:          true,
 		attrScriptWorkingDirectory:     true,
 	}
 }
@@ -145,6 +152,21 @@ func (h handlerScriptResource) attrs() (m map[string]bool) {
 		m[k] = true
 	}
 	return
+}
+
+func (h handlerScriptResource) changed(rd haschange, attrs map[string]bool) (changed []string) {
+	for k := range attrs {
+		if rd.HasChange(k) {
+			changed = append(changed, k)
+		}
+	}
+	return
+}
+func (h handlerScriptResource) changedAttrInputs(rd haschange) (changed []string) {
+	return h.changed(rd, h.attrInputs())
+}
+func (h handlerScriptResource) changedAttrCommands(rd haschange) (changed []string) {
+	return h.changed(rd, h.attrCommands())
 }
 
 func (h handlerScriptResource) newScript(rd *schema.ResourceData, l *linux, attrLifeCycle string) (s *script) {
@@ -183,8 +205,7 @@ func (h handlerScriptResource) Read(ctx context.Context, rd *schema.ResourceData
 	old := cast.ToString(rd.Get(attrScriptOutput))
 
 	err := h.read(ctx, rd, meta.(*linux))
-	var errExit *remote.ExitError
-	switch {
+	switch errExit := (*remote.ExitError)(nil); {
 	case errors.As(err, &errExit):
 		_ = rd.Set(attrScriptReadFailed, true)
 		_ = rd.Set(attrScriptReadError, err.Error())
@@ -225,14 +246,9 @@ func (h handlerScriptResource) Create(ctx context.Context, rd *schema.ResourceDa
 }
 
 // WARN: see https://github.com/hashicorp/terraform-plugin-sdk/issues/476
-func (h handlerScriptResource) restoreOldResourceData(rd *schema.ResourceData, except ...string) (err error) {
-	var exceptMap = map[string]bool{}
-	for _, k := range except {
-		exceptMap[k] = true
-	}
-
+func (h handlerScriptResource) restoreOldResourceData(rd *schema.ResourceData, except map[string]bool) (err error) {
 	for k := range h.attrs() {
-		if exceptMap[k] {
+		if except != nil && except[k] {
 			continue
 		}
 		o, _ := rd.GetChange(k)
@@ -245,11 +261,11 @@ func (h handlerScriptResource) restoreOldResourceData(rd *schema.ResourceData, e
 }
 
 func (h handlerScriptResource) Update(ctx context.Context, rd *schema.ResourceData, meta interface{}) (d diag.Diagnostics) {
-	if rd.HasChange(attrScriptLifecycleCommands) {
+	if len(h.changedAttrCommands(rd)) > 0 {
 		// mimic the behaviour when terraform provider is updated,
 		// that is no old logic are executed and
 		// the new logic are run with the existing state and diff
-		_ = h.restoreOldResourceData(rd, attrScriptLifecycleCommands)
+		_ = h.restoreOldResourceData(rd, h.attrCommands())
 		return
 	}
 
@@ -258,7 +274,7 @@ func (h handlerScriptResource) Update(ctx context.Context, rd *schema.ResourceDa
 	oldOutput := cast.ToString(rd.Get(attrScriptOutput))
 	sc.stdin = strings.NewReader(oldOutput)
 	if _, err := sc.exec(ctx); err != nil {
-		_ = h.restoreOldResourceData(rd)
+		_ = h.restoreOldResourceData(rd, nil)
 		return diag.FromErr(err)
 	}
 
@@ -282,15 +298,10 @@ func (h handlerScriptResource) CustomizeDiff(c context.Context, rd *schema.Resou
 		return // no state
 	}
 
-	if rd.HasChange(attrScriptLifecycleCommands) {
-		var forbidden []string
-		for key := range h.attrInputs() {
-			if rd.HasChange(key) {
-				forbidden = append(forbidden, key)
-			}
-		}
-		if len(forbidden) > 0 {
-			return fmt.Errorf("update to `%s` should not be combined with update to other arguments: %s", attrScriptLifecycleCommands, strings.Join(forbidden, ","))
+	if cmd := h.changedAttrCommands(rd); len(cmd) > 0 {
+		if fbd := h.changedAttrInputs(rd); len(fbd) > 0 {
+			return fmt.Errorf("update to '%s' should not be combined with update to other arguments: %s",
+				strings.Join(cmd, ","), strings.Join(fbd, ","))
 		}
 		return // updated commands. let Update handle it.
 	}
@@ -314,8 +325,6 @@ func (h handlerScriptResource) CustomizeDiff(c context.Context, rd *schema.Resou
 		case strings.HasPrefix(key, attrScriptEnvironment):
 			fallthrough
 		case strings.HasPrefix(key, attrScriptSensitiveEnvironment):
-			fallthrough
-		case strings.HasPrefix(key, attrScriptInterpreter):
 			parts := strings.Split(key, ".")
 			key = strings.Join(parts[:len(parts)-1], ".")
 		}
