@@ -84,8 +84,7 @@ func tNewTFMapFile() tfmap {
 type tfList []string
 
 func (l tfList) Copy() (c tfList) {
-	copy(c, l)
-	return
+	return append(c, l...)
 }
 
 func (l tfList) Serialize() (s string, err error) {
