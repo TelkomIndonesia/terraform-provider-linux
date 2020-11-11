@@ -233,15 +233,15 @@ func (h handlerScriptResource) Create(ctx context.Context, rd *schema.ResourceDa
 		return diag.FromErr(err)
 	}
 
-	if err := h.read(ctx, rd, l); err != nil {
-		return diag.FromErr(err)
-	}
-
 	id, err := uuid.NewRandom()
 	if err != nil {
 		return diag.FromErr(err)
 	}
 	rd.SetId(id.String())
+
+	if err := h.read(ctx, rd, l); err != nil {
+		return diag.FromErr(err)
+	}
 	return
 }
 
@@ -285,6 +285,9 @@ func (h handlerScriptResource) Update(ctx context.Context, rd *schema.ResourceDa
 }
 
 func (h handlerScriptResource) Delete(ctx context.Context, rd *schema.ResourceData, meta interface{}) (d diag.Diagnostics) {
+	if cast.ToBool(rd.Get(attrScriptReadFailed)) {
+		return
+	}
 	l := meta.(*linux)
 	sc := h.newScript(rd, l, attrScriptLifecycleCommandDelete)
 	if _, err := sc.exec(ctx); err != nil {

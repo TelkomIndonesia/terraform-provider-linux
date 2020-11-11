@@ -144,23 +144,16 @@ func TestAccLinuxScriptNoUpdate(t *testing.T) {
 			"Version": "1.0.0",
 		},
 	}
-	conf2 := tfConf{
-		Provider: testAccProvider,
-		Script:   conf1.Script.Copy(),
-		Extra:    conf1.Extra.Copy().With("Version", "2.0.0"),
-	}
-	conf3 := tfConf{
-		Provider: testAccProvider,
-		Script: tfScript{
-			Environment: conf2.Script.Environment.Copy().With("FILE", fmt.Sprintf(`"/tmp/linux1/%s"`, acctest.RandString(16))),
-		},
-		Extra: conf2.Extra.Copy(),
-	}
-	conf4 := tfConf{
-		Provider: testAccProvider,
-		Script:   conf2.Script.Copy(),
-		Extra:    conf2.Extra.Copy().With("Taint", `\n`),
-	}
+	conf2 := conf1.Copy(func(tc *tfConf) {
+		tc.Extra.With("Version", "2.0.0")
+	})
+	conf3 := conf2.Copy(func(tc *tfConf) {
+		tc.Script.Environment.
+			With("FILE", fmt.Sprintf(`"/tmp/linux1/%s"`, acctest.RandString(16)))
+	})
+	conf4 := conf2.Copy(func(tc *tfConf) {
+		tc.Extra.With("Taint", `\n`)
+	})
 
 	resource.Test(t, resource.TestCase{
 		ExternalProviders: map[string]resource.ExternalProvider{"null": {}},
@@ -434,7 +427,7 @@ func TestAccLinuxScriptFailedRead(t *testing.T) {
 				attrScriptLifecycleCommandCreate: `"echo -n $CONTENT > $FILE"`,
 				attrScriptLifecycleCommandRead:   `"cat $FILE"`,
 				attrScriptLifecycleCommandUpdate: `"echo -n '\n'$CONTENT >> $FILE"`,
-				attrScriptLifecycleCommandDelete: `"rm $FILE || true"`,
+				attrScriptLifecycleCommandDelete: `"rm $FILE"`,
 			},
 			Environment: tfmap{
 				"FILE":    `"/tmp/linux-test"`,
@@ -452,8 +445,7 @@ func TestAccLinuxScriptFailedRead(t *testing.T) {
 	scriptUpdatedWithOtherArguments := createFile.Copy(func(tc *tfConf) {
 		tc.Extra.Without("ShouldDelete")
 		tc.Script.LifecycleCommands.
-			With(attrScriptLifecycleCommandRead, `"cat $FILE || echo"`).
-			With(attrScriptLifecycleCommandDelete, `"rm $FILE"`)
+			With(attrScriptLifecycleCommandRead, `"cat $FILE || echo"`)
 		tc.Script.Environment.With("CONTENT", `"test2"`)
 	})
 	scriptUpdated := scriptUpdatedWithOtherArguments.Copy(func(tc *tfConf) {
