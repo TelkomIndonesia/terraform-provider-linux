@@ -168,6 +168,9 @@ func (h handlerScriptResource) changedAttrInputs(rd haschange) (changed []string
 func (h handlerScriptResource) changedAttrCommands(rd haschange) (changed []string) {
 	return h.changed(rd, h.attrCommands())
 }
+func (h handlerScriptResource) changedAttrInternal(rd haschange) (changed []string) {
+	return h.changed(rd, h.attrInternal())
+}
 
 func (h handlerScriptResource) newScript(rd *schema.ResourceData, l *linux, attrLifeCycle string) (s *script) {
 	if rd == nil {
@@ -318,19 +321,7 @@ func (h handlerScriptResource) CustomizeDiff(c context.Context, rd *schema.Resou
 		return // updateable
 	}
 
-	for _, key := range rd.GetChangedKeysPrefix("") {
-		if strings.HasPrefix(key, attrScriptTriggers) {
-			continue // already force new.
-		}
-
-		// need to remove index from map and list
-		switch {
-		case strings.HasPrefix(key, attrScriptEnvironment):
-			fallthrough
-		case strings.HasPrefix(key, attrScriptSensitiveEnvironment):
-			parts := strings.Split(key, ".")
-			key = strings.Join(parts[:len(parts)-1], ".")
-		}
+	for _, key := range append(h.changedAttrInputs(rd), h.changedAttrInternal(rd)...) {
 		err = rd.ForceNew(key)
 		if err != nil {
 			return
