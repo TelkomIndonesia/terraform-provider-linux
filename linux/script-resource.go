@@ -23,14 +23,17 @@ const (
 	attrScriptLifecycleCommandRead   = "read"
 	attrScriptLifecycleCommandUpdate = "update"
 	attrScriptLifecycleCommandDelete = "delete"
-	attrScriptTriggers               = "triggers"
-	attrScriptEnvironment            = "environment"
-	attrScriptSensitiveEnvironment   = "sensitive_environment"
 	attrScriptInterpreter            = "interpreter"
-	attrScriptWorkingDirectory       = "working_directory"
-	attrScriptDirty                  = "dirty"
-	attrScriptReadFailed             = "read_failed"
-	attrScriptOutput                 = "output"
+
+	attrScriptTriggers             = "triggers"
+	attrScriptEnvironment          = "environment"
+	attrScriptSensitiveEnvironment = "sensitive_environment"
+	attrScriptWorkingDirectory     = "working_directory"
+
+	attrScriptOutput = "output"
+
+	attrScriptDirty      = "__dirty__"
+	attrScriptReadFailed = "__read_failed__"
 )
 
 var schemaScriptResource = map[string]*schema.Schema{
@@ -59,6 +62,14 @@ var schemaScriptResource = map[string]*schema.Schema{
 			},
 		},
 	},
+	attrScriptInterpreter: {
+		Type:     schema.TypeList,
+		Optional: true,
+		Elem: &schema.Schema{
+			Type: schema.TypeString,
+		},
+	},
+
 	attrScriptTriggers: {
 		Type:     schema.TypeMap,
 		Optional: true,
@@ -75,13 +86,6 @@ var schemaScriptResource = map[string]*schema.Schema{
 		Elem:      schema.TypeString,
 		Sensitive: true,
 	},
-	attrScriptInterpreter: {
-		Type:     schema.TypeList,
-		Optional: true,
-		Elem: &schema.Schema{
-			Type: schema.TypeString,
-		},
-	},
 	attrScriptWorkingDirectory: {
 		Type:     schema.TypeString,
 		Optional: true,
@@ -97,13 +101,13 @@ var schemaScriptResource = map[string]*schema.Schema{
 		Type:        schema.TypeBool,
 		Optional:    true,
 		Default:     false,
-		Description: "`true` if new output is different than previous output. User must not manually set it to `true`",
+		Description: "`true` if new output is different than previous output. User must not manually set this to `true`",
 	},
 	attrScriptReadFailed: {
 		Type:        schema.TypeBool,
 		Optional:    true,
 		Default:     false,
-		Description: "`true` if read operation result in execution error. User must not manually set it to `true`",
+		Description: "`true` if read operation result in execution error. User must not manually set this to `true`",
 	},
 }
 
