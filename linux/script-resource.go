@@ -30,7 +30,6 @@ const (
 	attrScriptWorkingDirectory       = "working_directory"
 	attrScriptDirty                  = "dirty"
 	attrScriptReadFailed             = "read_failed"
-	attrScriptReadError              = "read_error"
 	attrScriptOutput                 = "output"
 )
 
@@ -95,19 +94,16 @@ var schemaScriptResource = map[string]*schema.Schema{
 	},
 
 	attrScriptDirty: {
-		Type:     schema.TypeBool,
-		Optional: true,
-		Default:  false,
+		Type:        schema.TypeBool,
+		Optional:    true,
+		Default:     false,
+		Description: "`true` if new output is different than previous output. User must not manually set it to `true`",
 	},
 	attrScriptReadFailed: {
-		Type:     schema.TypeBool,
-		Optional: true,
-		Default:  false,
-	},
-	attrScriptReadError: {
-		Type:     schema.TypeString,
-		Optional: true,
-		Default:  "",
+		Type:        schema.TypeBool,
+		Optional:    true,
+		Default:     false,
+		Description: "`true` if read operation result in execution error. User must not manually set it to `true`",
 	},
 }
 
@@ -134,7 +130,6 @@ func (h handlerScriptResource) attrInternal() map[string]bool {
 	return map[string]bool{
 		attrScriptDirty:      true,
 		attrScriptReadFailed: true,
-		attrScriptReadError:  true,
 	}
 }
 func (h handlerScriptResource) attrs() (m map[string]bool) {
@@ -167,6 +162,9 @@ func (h handlerScriptResource) changedAttrInputs(rd haschange) (changed []string
 }
 func (h handlerScriptResource) changedAttrCommands(rd haschange) (changed []string) {
 	return h.changed(rd, h.attrCommands())
+}
+func (h handlerScriptResource) changedAttrInternal(rd haschange) (changed []string) {
+	return h.changed(rd, h.attrInternal())
 }
 
 func (h handlerScriptResource) newScript(rd *schema.ResourceData, l *linux, attrLifeCycle string) (s *script) {
@@ -204,16 +202,12 @@ func (h handlerScriptResource) read(ctx context.Context, rd *schema.ResourceData
 func (h handlerScriptResource) Read(ctx context.Context, rd *schema.ResourceData, meta interface{}) (d diag.Diagnostics) {
 	old := cast.ToString(rd.Get(attrScriptOutput))
 
+	_ = rd.Set(attrScriptReadFailed, false)
 	err := h.read(ctx, rd, meta.(*linux))
-	switch errExit := (*remote.ExitError)(nil); {
-	case errors.As(err, &errExit):
+	if errExit := (*remote.ExitError)(nil); errors.As(err, &errExit) {
 		_ = rd.Set(attrScriptReadFailed, true)
-		_ = rd.Set(attrScriptReadError, err.Error())
+		_ = rd.Set(attrScriptOutput, err.Error())
 		return
-
-	default:
-		_ = rd.Set(attrScriptReadFailed, false)
-		_ = rd.Set(attrScriptReadError, "")
 	}
 	if err != nil {
 		return diag.FromErr(err)
@@ -318,19 +312,7 @@ func (h handlerScriptResource) CustomizeDiff(c context.Context, rd *schema.Resou
 		return // updateable
 	}
 
-	for _, key := range rd.GetChangedKeysPrefix("") {
-		if strings.HasPrefix(key, attrScriptTriggers) {
-			continue // already force new.
-		}
-
-		// need to remove index from map and list
-		switch {
-		case strings.HasPrefix(key, attrScriptEnvironment):
-			fallthrough
-		case strings.HasPrefix(key, attrScriptSensitiveEnvironment):
-			parts := strings.Split(key, ".")
-			key = strings.Join(parts[:len(parts)-1], ".")
-		}
+	for _, key := range append(h.changedAttrInputs(rd), h.changedAttrInternal(rd)...) {
 		err = rd.ForceNew(key)
 		if err != nil {
 			return

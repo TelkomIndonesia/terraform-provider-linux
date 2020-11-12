@@ -151,7 +151,11 @@ func TestAccLinuxScriptNoUpdate(t *testing.T) {
 		tc.Script.Environment.
 			With("FILE", fmt.Sprintf(`"/tmp/linux1/%s"`, acctest.RandString(16)))
 	})
-	conf4 := conf2.Copy(func(tc *tfConf) {
+	conf4 := conf3.Copy(func(tc *tfConf) {
+		tc.Script.Triggers.
+			With("HELLO", `"world"`)
+	})
+	conf5 := conf2.Copy(func(tc *tfConf) {
 		tc.Extra.With("Taint", `\n`)
 	})
 
@@ -170,7 +174,10 @@ func TestAccLinuxScriptNoUpdate(t *testing.T) {
 				Config: testAccLinuxScriptNoUpdateConfig(t, conf3),
 			},
 			{
-				Config:             testAccLinuxScriptNoUpdateConfig(t, conf4),
+				Config: testAccLinuxScriptNoUpdateConfig(t, conf4),
+			},
+			{
+				Config:             testAccLinuxScriptNoUpdateConfig(t, conf5),
 				ExpectNonEmptyPlan: true,
 			},
 		},
