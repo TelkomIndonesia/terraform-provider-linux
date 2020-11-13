@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/go-cty/cty"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform/communicator/remote"
@@ -32,8 +33,8 @@ const (
 
 	attrScriptOutput = "output"
 
-	attrScriptDirty      = "__dirty__"
-	attrScriptReadFailed = "__read_failed__"
+	attrScriptDirtyOutput  = "__dirty_output__"
+	attrScriptFaultyOutput = "__faulty_output__"
 )
 
 var schemaScriptResource = map[string]*schema.Schema{
@@ -97,17 +98,21 @@ var schemaScriptResource = map[string]*schema.Schema{
 		Computed: true,
 	},
 
-	attrScriptDirty: {
-		Type:        schema.TypeBool,
-		Optional:    true,
-		Default:     false,
-		Description: "`true` if new output is different than previous output. User must not manually set this to `true`",
+	attrScriptDirtyOutput: {
+		Type:     schema.TypeString,
+		Optional: true,
+		Default:  "",
+		ValidateDiagFunc: func(i interface{}, c cty.Path) (d diag.Diagnostics) {
+			return diag.Errorf("`%s` should not be set from configuration.", attrScriptDirtyOutput)
+		},
 	},
-	attrScriptReadFailed: {
-		Type:        schema.TypeBool,
-		Optional:    true,
-		Default:     false,
-		Description: "`true` if read operation result in execution error. User must not manually set this to `true`",
+	attrScriptFaultyOutput: {
+		Type:     schema.TypeString,
+		Optional: true,
+		Default:  "",
+		ValidateDiagFunc: func(i interface{}, c cty.Path) (d diag.Diagnostics) {
+			return diag.Errorf("`%s` should not be set from configuration.", attrScriptFaultyOutput)
+		},
 	},
 }
 
@@ -128,16 +133,26 @@ func (h handlerScriptResource) attrInputs() map[string]bool {
 	}
 }
 func (h handlerScriptResource) attrOutputs() map[string]bool {
-	return map[string]bool{attrScriptOutput: true}
+	return map[string]bool{
+		attrScriptOutput: true,
+	}
 }
 func (h handlerScriptResource) attrInternal() map[string]bool {
 	return map[string]bool{
-		attrScriptDirty:      true,
-		attrScriptReadFailed: true,
+		attrScriptDirtyOutput:  true,
+		attrScriptFaultyOutput: true,
 	}
 }
-func (h handlerScriptResource) attrs() (m map[string]bool) {
+func (h handlerScriptResource) attrs(source ...map[string]bool) (m map[string]bool) {
 	m = make(map[string]bool)
+	if len(source) > 0 {
+		for _, s := range source {
+			for k, v := range s {
+				m[k] = v
+			}
+		}
+		return
+	}
 	for k := range h.attrCommands() {
 		m[k] = true
 	}
@@ -171,6 +186,15 @@ func (h handlerScriptResource) changedAttrInternal(rd haschange) (changed []stri
 	return h.changed(rd, h.attrInternal())
 }
 
+func (h handlerScriptResource) setNewComputed(rd *schema.ResourceDiff) (err error) {
+	for k := range h.attrOutputs() {
+		err = rd.SetNewComputed(k) // assume all computed value will changedAttrInputs
+		if err != nil {
+			return
+		}
+	}
+	return
+}
 func (h handlerScriptResource) newScript(rd *schema.ResourceData, l *linux, attrLifeCycle string) (s *script) {
 	if rd == nil {
 		return
@@ -204,13 +228,14 @@ func (h handlerScriptResource) read(ctx context.Context, rd *schema.ResourceData
 }
 
 func (h handlerScriptResource) Read(ctx context.Context, rd *schema.ResourceData, meta interface{}) (d diag.Diagnostics) {
+	_ = rd.Set(attrScriptDirtyOutput, "")
+	_ = rd.Set(attrScriptFaultyOutput, "")
 	old := cast.ToString(rd.Get(attrScriptOutput))
+	defer func() { _ = rd.Set(attrScriptOutput, old) }() // never change output here, since it will be corrected by create or update.
 
-	_ = rd.Set(attrScriptReadFailed, false)
 	err := h.read(ctx, rd, meta.(*linux))
 	if errExit := (*remote.ExitError)(nil); errors.As(err, &errExit) {
-		_ = rd.Set(attrScriptReadFailed, true)
-		_ = rd.Set(attrScriptOutput, err.Error())
+		_ = rd.Set(attrScriptFaultyOutput, fmt.Sprintf("Faulty output produced:\n\n%s", err))
 		return
 	}
 	if err != nil {
@@ -218,9 +243,10 @@ func (h handlerScriptResource) Read(ctx context.Context, rd *schema.ResourceData
 	}
 
 	new := cast.ToString(rd.Get(attrScriptOutput))
-	if err := rd.Set(attrScriptDirty, old != new); err != nil {
-		return diag.FromErr(err)
+	if old != new {
+		_ = rd.Set(attrScriptDirtyOutput, fmt.Sprintf("Dirty output detected:\n\n%s", new))
 	}
+
 	return
 }
 
@@ -258,13 +284,23 @@ func (h handlerScriptResource) restoreOldResourceData(rd *schema.ResourceData, e
 	return
 }
 
+func (h handlerScriptResource) UpdateCommands(ctx context.Context, rd *schema.ResourceData, meta interface{}) (d diag.Diagnostics) {
+	_ = h.restoreOldResourceData(rd, h.attrs(h.attrCommands(), h.attrInternal())) // just to be sure
+
+	if rd.HasChange(attrScriptLifecycleCommands + ".0." + attrScriptLifecycleCommandRead) {
+		err := h.read(ctx, rd, meta.(*linux))
+		if err != nil {
+			_ = h.restoreOldResourceData(rd, nil)
+			return diag.FromErr(err)
+		}
+	}
+
+	return
+}
+
 func (h handlerScriptResource) Update(ctx context.Context, rd *schema.ResourceData, meta interface{}) (d diag.Diagnostics) {
 	if len(h.changedAttrCommands(rd)) > 0 {
-		// mimic the behaviour when terraform provider is updated,
-		// that is no old logic are executed and
-		// the new logic are run with the existing state and diff
-		_ = h.restoreOldResourceData(rd, h.attrCommands())
-		return
+		return h.UpdateCommands(ctx, rd, meta)
 	}
 
 	l := meta.(*linux)
@@ -283,7 +319,7 @@ func (h handlerScriptResource) Update(ctx context.Context, rd *schema.ResourceDa
 }
 
 func (h handlerScriptResource) Delete(ctx context.Context, rd *schema.ResourceData, meta interface{}) (d diag.Diagnostics) {
-	if cast.ToBool(rd.Get(attrScriptReadFailed)) {
+	if cast.ToString(rd.Get(attrScriptFaultyOutput)) != "" {
 		return
 	}
 	l := meta.(*linux)
@@ -304,19 +340,26 @@ func (h handlerScriptResource) CustomizeDiff(c context.Context, rd *schema.Resou
 			return fmt.Errorf("update to '%s' should not be combined with update to other arguments: %s",
 				strings.Join(cmd, ","), strings.Join(fbd, ","))
 		}
+
+		if rd.HasChange(attrScriptLifecycleCommands + ".0." + attrScriptLifecycleCommandRead) {
+			_ = h.setNewComputed(rd) // assume all computed will change
+		}
 		return // updated commands. let Update handle it.
 	}
 
-	if f, _ := rd.GetChange(attrScriptReadFailed); cast.ToBool(f) {
-		_ = rd.ForceNew(attrScriptReadFailed) // read failed, force recreation
+	if f, _ := rd.GetChange(attrScriptFaultyOutput); cast.ToString(f) != "" {
+		_ = rd.ForceNew(attrScriptFaultyOutput) // faulty output, force recreation
 		return
 	}
 
 	if _, ok := rd.GetOk(attrScriptLifecycleCommands + ".0." + attrScriptLifecycleCommandUpdate); ok {
+		if len(h.changedAttrInputs(rd)) > 0 {
+			_ = h.setNewComputed(rd) // assume all computed will change
+		}
 		return // updateable
 	}
 
-	for _, key := range append(h.changedAttrInputs(rd), h.changedAttrInternal(rd)...) {
+	for _, key := range h.changed(rd, h.attrs(h.attrInputs(), h.attrInternal())) {
 		err = rd.ForceNew(key)
 		if err != nil {
 			return
