@@ -285,8 +285,6 @@ func (h handlerScriptResource) restoreOldResourceData(rd *schema.ResourceData, e
 }
 
 func (h handlerScriptResource) UpdateCommands(ctx context.Context, rd *schema.ResourceData, meta interface{}) (d diag.Diagnostics) {
-	_ = h.restoreOldResourceData(rd, h.attrs(h.attrCommands(), h.attrInternal())) // just to be sure
-
 	if rd.HasChange(attrScriptLifecycleCommands + ".0." + attrScriptLifecycleCommandRead) {
 		err := h.read(ctx, rd, meta.(*linux))
 		if err != nil {
