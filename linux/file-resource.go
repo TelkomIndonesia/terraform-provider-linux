@@ -3,10 +3,12 @@ package linux
 import (
 	"context"
 	"errors"
+	"regexp"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/spf13/cast"
 )
 
@@ -45,9 +47,10 @@ var schemaFileResource = map[string]*schema.Schema{
 		Default:  0,
 	},
 	attrFileMode: {
-		Type:     schema.TypeString,
-		Optional: true,
-		Default:  "644",
+		Type:         schema.TypeString,
+		Optional:     true,
+		Default:      "644",
+		ValidateFunc: validation.StringMatch(regexp.MustCompile("[0-7]{3}"), "Invalid linux permission"),
 	},
 	attrFileIgnoreContent: {
 		Type:        schema.TypeBool,

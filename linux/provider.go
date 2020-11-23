@@ -175,7 +175,9 @@ func Provider() *schema.Provider {
 			}
 			return l, diags
 		},
-
+		DataSourcesMap: map[string]*schema.Resource{
+			"linux_script": scriptDataSource(),
+		},
 		ResourcesMap: map[string]*schema.Resource{
 			"linux_file":      fileResource(),
 			"linux_directory": directoryResource(),
