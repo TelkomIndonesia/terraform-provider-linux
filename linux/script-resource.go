@@ -19,6 +19,8 @@ type haschange interface {
 }
 
 const (
+	attrScriptProviderOverride = "provider_override"
+
 	attrScriptLifecycleCommands      = "lifecycle_commands"
 	attrScriptLifecycleCommandCreate = "create"
 	attrScriptLifecycleCommandRead   = "read"
@@ -38,6 +40,15 @@ const (
 )
 
 var schemaScriptResource = map[string]*schema.Schema{
+	attrScriptProviderOverride: {
+		Type:     schema.TypeList,
+		Optional: true,
+		MaxItems: 1,
+		Elem: &schema.Resource{
+			Schema: subSchemaProviderOverride,
+		},
+	},
+
 	attrScriptLifecycleCommands: {
 		Type:     schema.TypeList,
 		Required: true,
@@ -233,7 +244,11 @@ func (h handlerScriptResource) Read(ctx context.Context, rd *schema.ResourceData
 	old := cast.ToString(rd.Get(attrScriptOutput))
 	defer func() { _ = rd.Set(attrScriptOutput, old) }() // never change output here, since it will be corrected by create or update.
 
-	err := h.read(ctx, rd, meta.(*linux))
+	l, err := getLinux(meta.(*linuxPool), rd)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+	err = h.read(ctx, rd, l)
 	if errExit := (*remote.ExitError)(nil); errors.As(err, &errExit) {
 		_ = rd.Set(attrScriptFaultyOutput, fmt.Sprintf("Faulty output produced:\n\n%s", err))
 		return
@@ -251,7 +266,10 @@ func (h handlerScriptResource) Read(ctx context.Context, rd *schema.ResourceData
 }
 
 func (h handlerScriptResource) Create(ctx context.Context, rd *schema.ResourceData, meta interface{}) (d diag.Diagnostics) {
-	l := meta.(*linux)
+	l, err := getLinux(meta.(*linuxPool), rd)
+	if err != nil {
+		return diag.FromErr(err)
+	}
 	sc := h.newScript(rd, l, attrScriptLifecycleCommandCreate)
 	if _, err := sc.exec(ctx); err != nil {
 		return diag.FromErr(err)
@@ -285,8 +303,13 @@ func (h handlerScriptResource) restoreOldResourceData(rd *schema.ResourceData, e
 }
 
 func (h handlerScriptResource) UpdateCommands(ctx context.Context, rd *schema.ResourceData, meta interface{}) (d diag.Diagnostics) {
+	l, err := getLinux(meta.(*linuxPool), rd)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
 	if rd.HasChange(attrScriptLifecycleCommands + ".0." + attrScriptLifecycleCommandRead) {
-		err := h.read(ctx, rd, meta.(*linux))
+		err := h.read(ctx, rd, l)
 		if err != nil {
 			_ = h.restoreOldResourceData(rd, nil)
 			return diag.FromErr(err)
@@ -301,7 +324,10 @@ func (h handlerScriptResource) Update(ctx context.Context, rd *schema.ResourceDa
 		return h.UpdateCommands(ctx, rd, meta)
 	}
 
-	l := meta.(*linux)
+	l, err := getLinux(meta.(*linuxPool), rd)
+	if err != nil {
+		return diag.FromErr(err)
+	}
 	sc := h.newScript(rd, l, attrScriptLifecycleCommandUpdate)
 	oldOutput := cast.ToString(rd.Get(attrScriptOutput))
 	sc.stdin = strings.NewReader(oldOutput)
@@ -320,7 +346,10 @@ func (h handlerScriptResource) Delete(ctx context.Context, rd *schema.ResourceDa
 	if cast.ToString(rd.Get(attrScriptFaultyOutput)) != "" {
 		return
 	}
-	l := meta.(*linux)
+	l, err := getLinux(meta.(*linuxPool), rd)
+	if err != nil {
+		return diag.FromErr(err)
+	}
 	sc := h.newScript(rd, l, attrScriptLifecycleCommandDelete)
 	if _, err := sc.exec(ctx); err != nil {
 		return diag.FromErr(err)

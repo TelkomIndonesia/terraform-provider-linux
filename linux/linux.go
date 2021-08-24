@@ -33,6 +33,19 @@ type linux struct {
 	commMutex sync.Mutex
 }
 
+func (l *linux) Equal(li *linux) (eq bool) {
+	if l == nil || li == nil {
+		return l == li
+	}
+
+	for k, v := range l.connInfo {
+		if li.connInfo[k] != v {
+			return false
+		}
+	}
+	return true
+}
+
 func (l *linux) init(ctx context.Context) error {
 	l.comm, l.commErr = ssh.NewNoPty(&terraform.InstanceState{Ephemeral: terraform.EphemeralState{
 		ConnInfo: l.connInfo,

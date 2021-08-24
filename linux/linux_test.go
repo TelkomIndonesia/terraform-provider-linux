@@ -23,6 +23,14 @@ var testAccProvider = tfmap{
 	attrProviderPassword: `"root"`,
 }
 
+var testAccOverridenProvider = tfmap{
+	attrProviderHost:     `"8.8.8.8"`,
+	attrProviderPort:     `2222`,
+	attrProviderUser:     `"something"`,
+	attrProviderPassword: `"else"`,
+	attrProviderTimeout:  "1",
+}
+
 func testAccInit() {
 	testAccProviders = map[string]*schema.Provider{
 		"linux": Provider(),

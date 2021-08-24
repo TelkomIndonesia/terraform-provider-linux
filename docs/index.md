@@ -6,9 +6,9 @@ Provider for managing linux machine through SSH connection.
 
 ```hcl
 provider "linux" {
-    host = "127.0.0.1"
-    port = 22
-    user = "root"
+    host     = "127.0.0.1"
+    port     = 22
+    user     = "root"
     password = "root"
 }
 
@@ -45,10 +45,12 @@ resource "linux_script" "install_package" {
         update = "apt update && apt install -y $PACKAGE_NAME=$PACKAGE_VERSION"
         delete = "apt remove -y $PACKAGE_NAME"
     }
+
     environment = {
         PACKAGE_NAME = local.package_name
         PACKAGE_VERSION = "2.4.18-2ubuntu3.4"
     }
+
     triggers = {
         PACKAGE_NAME = local.package_name"
     }
@@ -79,3 +81,36 @@ resource "linux_script" "install_package" {
 ## Lazy SSH Connection Setup
 
 SSH connection are only made when Terraform enters Create|Read|Update|Delete phase of this provider's resources. Thus specifying it's arguments with value that only known after apply should be possible.
+
+## Provider Override
+
+It is also possible to provide ssh connection configuration directly in resources or data sources definition under `provider_override` block as a workaround for implementing dynamic provider. The arguments are the same as [the one above](#argument-reference) with additional `id` attribute, which is used in connection pooling and locking mechanism.
+
+```terraform
+resource "linux_script" "install_package" {
+    provider_override {
+        id       = "myhost"
+
+        host     = "127.0.0.1"
+        port     = 22
+        user     = "root"
+        password = "root"
+    }
+
+    lifecycle_commands {
+        create = "apt update && apt install -y $PACKAGE_NAME=$PACKAGE_VERSION"
+        read   = "apt-cache policy $PACKAGE_NAME | grep 'Installed:' | grep -v '(none)' | awk '{ print $2 }' | xargs | tr -d '\n'"
+        update = "apt update && apt install -y $PACKAGE_NAME=$PACKAGE_VERSION"
+        delete = "apt remove -y $PACKAGE_NAME"
+    }
+
+    environment = {
+        PACKAGE_NAME    = local.package_name
+        PACKAGE_VERSION = "2.4.18-2ubuntu3.4"
+    }
+
+    triggers = {
+        PACKAGE_NAME = local.package_name"
+    }
+}
+```

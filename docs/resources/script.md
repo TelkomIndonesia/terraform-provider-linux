@@ -29,6 +29,7 @@ resource "linux_script" "install_package" {
 
 The following arguments are supported:
 
+- `provider_override` - (Optional) see [provider_override](../#provider-override).
 - `lifecycle_commands` - (Required) see [lifecycle_commands](#lifecycle_commands).
 - `interpreter` - (Optional, string list) Interpreter for running each `lifecycle_commands`. Default empty list.
 - `working_directory` - (Optional, string) The working directory where each `lifecycle_commands` is executed. Default empty string.

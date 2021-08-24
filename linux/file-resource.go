@@ -13,17 +13,27 @@ import (
 )
 
 const (
-	attrFilePath          = "path"
-	attrFileContent       = "content"
-	attrFileOwner         = "owner"
-	attrFileGroup         = "group"
-	attrFileMode          = "mode"
-	attrFileIgnoreContent = "ignore_content"
-	attrFileOverwrite     = "overwrite"
-	attrFileRecyclePath   = "recycle_path"
+	attrFileProviderOverride = "provider_override"
+	attrFilePath             = "path"
+	attrFileContent          = "content"
+	attrFileOwner            = "owner"
+	attrFileGroup            = "group"
+	attrFileMode             = "mode"
+	attrFileIgnoreContent    = "ignore_content"
+	attrFileOverwrite        = "overwrite"
+	attrFileRecyclePath      = "recycle_path"
 )
 
 var schemaFileResource = map[string]*schema.Schema{
+	attrFileProviderOverride: {
+		Type:     schema.TypeList,
+		Optional: true,
+		MaxItems: 1,
+		Elem: &schema.Resource{
+			Schema: subSchemaProviderOverride,
+		},
+	},
+
 	attrFilePath: {
 		Type:     schema.TypeString,
 		Required: true,
@@ -163,7 +173,10 @@ func (handlerFileResource) updateResourceData(f *file, rd *schema.ResourceData) 
 }
 
 func (h handlerFileResource) Read(ctx context.Context, rd *schema.ResourceData, meta interface{}) (d diag.Diagnostics) {
-	l := meta.(*linux)
+	l, err := getLinux(meta.(*linuxPool), rd)
+	if err != nil {
+		return diag.FromErr(err)
+	}
 	f, err := l.readFile(ctx, cast.ToString(rd.Get(attrFilePath)), cast.ToBool(rd.Get(attrFileIgnoreContent)))
 	if err != nil && !errors.Is(err, errPathNotExist) {
 		return diag.FromErr(err)
@@ -178,7 +191,10 @@ func (h handlerFileResource) Read(ctx context.Context, rd *schema.ResourceData, 
 }
 
 func (h handlerFileResource) Create(ctx context.Context, rd *schema.ResourceData, meta interface{}) (d diag.Diagnostics) {
-	l := meta.(*linux)
+	l, err := getLinux(meta.(*linuxPool), rd)
+	if err != nil {
+		return diag.FromErr(err)
+	}
 	f := h.newFile(rd)
 	if err := l.createFile(ctx, f); err != nil {
 		return diag.FromErr(err)
@@ -194,9 +210,13 @@ func (h handlerFileResource) Create(ctx context.Context, rd *schema.ResourceData
 }
 
 func (h handlerFileResource) Update(ctx context.Context, rd *schema.ResourceData, meta interface{}) (d diag.Diagnostics) {
-	l := meta.(*linux)
+	l, err := getLinux(meta.(*linuxPool), rd)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
 	old, new := h.newDiffedFile(rd)
-	err := l.updateFile(ctx, old, new)
+	err = l.updateFile(ctx, old, new)
 	if err != nil {
 		_ = h.updateResourceData(old, rd) // WARN: see https://github.com/hashicorp/terraform-plugin-sdk/issues/476
 		return diag.FromErr(err)
@@ -206,7 +226,11 @@ func (h handlerFileResource) Update(ctx context.Context, rd *schema.ResourceData
 }
 
 func (h handlerFileResource) Delete(ctx context.Context, rd *schema.ResourceData, meta interface{}) (d diag.Diagnostics) {
-	l := meta.(*linux)
+	l, err := getLinux(meta.(*linuxPool), rd)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
 	if err := l.deleteFile(ctx, h.newFile(rd)); err != nil {
 		return diag.FromErr(err)
 	}

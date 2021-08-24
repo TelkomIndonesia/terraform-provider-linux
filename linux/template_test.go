@@ -180,12 +180,13 @@ func (t tfScript) Serialize() (s string, err error) {
 }
 
 type tfConf struct {
-	Provider   tfmap
-	File       tfmap
-	Directory  tfmap
-	Script     tfScript
-	DataScript tfScript
-	Extra      tfmap
+	Provider         tfmap
+	ProviderOverride tfmap
+	File             tfmap
+	Directory        tfmap
+	Script           tfScript
+	DataScript       tfScript
+	Extra            tfmap
 }
 
 func (c tfConf) compile(tmpl string) (string, error) {
@@ -194,6 +195,7 @@ func (c tfConf) compile(tmpl string) (string, error) {
 
 func (c tfConf) Copy(modifers ...func(*tfConf)) (n tfConf) {
 	n.Provider = c.Provider.Copy()
+	n.ProviderOverride = c.ProviderOverride.Copy()
 	n.File = c.File.Copy()
 	n.Directory = c.Directory.Copy()
 	n.Script = c.Script.Copy()

@@ -9,18 +9,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAccLinuxFileBasic(t *testing.T) {
+func TestAccLinuxFileProviderOverrideBasic(t *testing.T) {
 	conf1 := tfConf{
-		Provider: testAccProvider,
-		File:     tNewTFMapFile().Without(attrFileOwner, attrFileGroup, attrFileMode),
+		Provider:         testAccOverridenProvider,
+		ProviderOverride: testAccProvider.Copy().With("id", `"someid"`),
+		File:             tNewTFMapFile().Without(attrFileOwner, attrFileGroup, attrFileMode),
 	}
 	conf2 := conf1.Copy(func(tc *tfConf) {
 		tc.File.With(attrFileContent, `"test"`)
 	})
 	conf3 := tfConf{
-		Provider: testAccProvider,
-		File:     tNewTFMapFile(),
-		Extra:    tfmap{"path_previous": conf1.File[attrFilePath]},
+		Provider:         testAccOverridenProvider,
+		ProviderOverride: testAccProvider.Copy().With("id", `"someid"`),
+		File:             tNewTFMapFile(),
+		Extra:            tfmap{"path_previous": conf1.File[attrFilePath]},
 	}
 
 	resource.Test(t, resource.TestCase{
@@ -29,19 +31,19 @@ func TestAccLinuxFileBasic(t *testing.T) {
 		Providers:         testAccProviders,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccLinuxFileBasicConfig(t, conf1),
+				Config: testAccLinuxFileProviderOverrideBasicConfig(t, conf1),
 			},
 			{
-				Config: testAccLinuxFileBasicConfig(t, conf2),
+				Config: testAccLinuxFileProviderOverrideBasicConfig(t, conf2),
 			},
 			{
-				Config: testAccLinuxFileBasicConfig(t, conf3),
+				Config: testAccLinuxFileProviderOverrideBasicConfig(t, conf3),
 			},
 		},
 	})
 }
 
-func testAccLinuxFileBasicConfig(t *testing.T, conf tfConf) (s string) {
+func testAccLinuxFileProviderOverrideBasicConfig(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 		provider "linux" {
 		    {{- .Provider.Serialize | nindent 4 }}
@@ -50,7 +52,7 @@ func testAccLinuxFileBasicConfig(t *testing.T, conf tfConf) (s string) {
 		resource "null_resource" "destroy_validator" {
 		    connection {
 		        type = "ssh"
-		        {{- .Provider.Serialize | nindent 8 }}
+		        {{- ((.ProviderOverride.Copy).Without "id").Serialize | nindent 8 }}
 		    }
 		    provisioner "remote-exec" {
 		        when = destroy
@@ -64,7 +66,11 @@ func testAccLinuxFileBasicConfig(t *testing.T, conf tfConf) (s string) {
 
 		resource "linux_file" "file" {
 		    depends_on = [ null_resource.destroy_validator ]  
-		
+			
+		    provider_override {
+		        {{- .ProviderOverride.Serialize | nindent 8 }}
+		    }
+			
 		    {{- .File.Serialize | nindent 4 }}
 		}
 
@@ -79,7 +85,7 @@ func testAccLinuxFileBasicConfig(t *testing.T, conf tfConf) (s string) {
 		    }
 		    connection {
 		        type = "ssh"
-		        {{- .Provider.Serialize | nindent 8 }}
+		        {{- ((.ProviderOverride.Copy).Without "id").Serialize | nindent 8 }}
 		    }
 		    provisioner "file" {
 		        content = self.triggers["content"]
@@ -110,18 +116,20 @@ func testAccLinuxFileBasicConfig(t *testing.T, conf tfConf) (s string) {
 	return
 }
 
-func TestAccLinuxFileOverride(t *testing.T) {
+func TestAccLinuxFileProviderOverrideOverride(t *testing.T) {
 	conf1 := tfConf{
-		Provider: testAccProvider,
-		File:     tNewTFMapFile(),
+		Provider:         testAccOverridenProvider,
+		ProviderOverride: testAccProvider.Copy().With("id", `"someid"`),
+		File:             tNewTFMapFile(),
 	}
 	conf2 := conf1.Copy(func(tc *tfConf) {
 		tc.File.With(attrFileOverwrite, "true")
 	})
 	conf3 := tfConf{
-		Provider: testAccProvider,
-		File:     tNewTFMapFile(),
-		Extra:    tfmap{"path_previous": conf1.File[attrFilePath]},
+		Provider:         testAccOverridenProvider,
+		ProviderOverride: testAccProvider.Copy().With("id", `"someid"`),
+		File:             tNewTFMapFile(),
+		Extra:            tfmap{"path_previous": conf1.File[attrFilePath]},
 	}
 	conf4 := conf3.Copy(func(tc *tfConf) {
 		tc.File.With(attrFileOverwrite, "true")
@@ -133,24 +141,24 @@ func TestAccLinuxFileOverride(t *testing.T) {
 		Providers:         testAccProviders,
 		Steps: []resource.TestStep{
 			{
-				Config:      testAccLinuxFileOverrideConfig(t, conf1),
+				Config:      testAccLinuxFileProviderOverrideOverrideConfig(t, conf1),
 				ExpectError: regexp.MustCompile(" exist"),
 			},
 			{
-				Config: testAccLinuxFileOverrideConfig(t, conf2),
+				Config: testAccLinuxFileProviderOverrideOverrideConfig(t, conf2),
 			},
 			{
-				Config:      testAccLinuxFileOverrideConfig(t, conf3),
+				Config:      testAccLinuxFileProviderOverrideOverrideConfig(t, conf3),
 				ExpectError: regexp.MustCompile(" exist"),
 			},
 			{
-				Config: testAccLinuxFileOverrideConfig(t, conf4),
+				Config: testAccLinuxFileProviderOverrideOverrideConfig(t, conf4),
 			},
 		},
 	})
 }
 
-func testAccLinuxFileOverrideConfig(t *testing.T, conf tfConf) (s string) {
+func testAccLinuxFileProviderOverrideOverrideConfig(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 		provider "linux" {
 		    {{- .Provider.Serialize | nindent 4 }}
@@ -162,7 +170,7 @@ func testAccLinuxFileOverrideConfig(t *testing.T, conf tfConf) (s string) {
 		    }
 		    connection {
 		        type = "ssh"
-		        {{- .Provider.Serialize | nindent 8 }}
+		        {{- ((.ProviderOverride.Copy).Without "id").Serialize | nindent 8 }}
 		    }
 		    provisioner "remote-exec" {
 		        inline = [ "mkdir -p ${ dirname(self.triggers["path"]) }" ]
@@ -176,6 +184,9 @@ func testAccLinuxFileOverrideConfig(t *testing.T, conf tfConf) (s string) {
 		resource "linux_file" "file" {
 		    depends_on = [ null_resource.existing_file ]  
 		
+		    provider_override {
+		        {{- .ProviderOverride.Serialize | nindent 8 }}
+		    }
 		    {{- .File.Serialize | nindent 4 }}
 		}
 
@@ -190,7 +201,7 @@ func testAccLinuxFileOverrideConfig(t *testing.T, conf tfConf) (s string) {
 		    }
 		    connection {
 		        type = "ssh"
-		        {{- .Provider.Serialize | nindent 8 }}
+		        {{- ((.ProviderOverride.Copy).Without "id").Serialize | nindent 8 }}
 		    }
 		    provisioner "file" {
 		        content = self.triggers["content"]
@@ -221,15 +232,17 @@ func testAccLinuxFileOverrideConfig(t *testing.T, conf tfConf) (s string) {
 	return
 }
 
-func TestAccLinuxFileIgnoreContent(t *testing.T) {
+func TestAccLinuxFileProviderOverrideIgnoreContent(t *testing.T) {
 	conf1 := tfConf{
-		Provider: testAccProvider,
-		File:     tNewTFMapFile().With("ignore_content", "true"),
+		Provider:         testAccOverridenProvider,
+		ProviderOverride: testAccProvider.Copy().With("id", `"someid"`),
+		File:             tNewTFMapFile().With("ignore_content", "true"),
 	}
 	conf2 := tfConf{
-		Provider: testAccProvider,
-		File:     tNewTFMapFile().With("ignore_content", "true"),
-		Extra:    tfmap{"path_previous": conf1.File["path"]},
+		Provider:         testAccOverridenProvider,
+		ProviderOverride: testAccProvider.Copy().With("id", `"someid"`),
+		File:             tNewTFMapFile().With("ignore_content", "true"),
+		Extra:            tfmap{"path_previous": conf1.File["path"]},
 	}
 	resource.Test(t, resource.TestCase{
 		ExternalProviders: map[string]resource.ExternalProvider{"null": {}},
@@ -237,16 +250,16 @@ func TestAccLinuxFileIgnoreContent(t *testing.T) {
 		Providers:         testAccProviders,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccLinuxFileIgnoreContentConfig(t, conf1),
+				Config: testAccLinuxFileProviderOverrideIgnoreContentConfig(t, conf1),
 			},
 			{
-				Config: testAccLinuxFileIgnoreContentConfig(t, conf2),
+				Config: testAccLinuxFileProviderOverrideIgnoreContentConfig(t, conf2),
 			},
 		},
 	})
 }
 
-func testAccLinuxFileIgnoreContentConfig(t *testing.T, conf tfConf) (s string) {
+func testAccLinuxFileProviderOverrideIgnoreContentConfig(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 		provider "linux" {
 		    {{- .Provider.Serialize | nindent 4 }}
@@ -257,11 +270,14 @@ func testAccLinuxFileIgnoreContentConfig(t *testing.T, conf tfConf) (s string) {
 		}
 
 		resource "linux_file" "file" {
+		    provider_override {
+		        {{- .ProviderOverride.Serialize | nindent 8 }}
+		    }
 		    {{- .File.Serialize | nindent 4 }}
 
 		    connection {
 		        type = "ssh"
-		        {{- .Provider.Serialize | nindent 8 }}
+		        {{- ((.ProviderOverride.Copy).Without "id").Serialize | nindent 8 }}
 		    }
 		    
 		    provisioner "remote-exec" {
@@ -280,7 +296,7 @@ func testAccLinuxFileIgnoreContentConfig(t *testing.T, conf tfConf) (s string) {
 		    }
 		    connection {
 		        type = "ssh"
-		        {{- .Provider.Serialize | nindent 8 }}
+		        {{- ((.ProviderOverride.Copy).Without "id").Serialize | nindent 8 }}
 		    }
 		    provisioner "file" {
 		        content = local.new_content
@@ -310,10 +326,11 @@ func testAccLinuxFileIgnoreContentConfig(t *testing.T, conf tfConf) (s string) {
 	return
 }
 
-func TestAccLinuxFileRecyclePath(t *testing.T) {
+func TestAccLinuxFileProviderOverrideRecyclePath(t *testing.T) {
 	conf1 := tfConf{
-		Provider: testAccProvider,
-		File:     tNewTFMapFile().With(attrFileRecyclePath, `"/tmp/recycle"`),
+		Provider:         testAccOverridenProvider,
+		ProviderOverride: testAccProvider.Copy().With("id", `"someid"`),
+		File:             tNewTFMapFile().With(attrFileRecyclePath, `"/tmp/recycle"`),
 	}
 	resource.Test(t, resource.TestCase{
 		ExternalProviders: map[string]resource.ExternalProvider{"null": {}},
@@ -321,13 +338,13 @@ func TestAccLinuxFileRecyclePath(t *testing.T) {
 		Providers:         testAccProviders,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccLinuxFileRecyclePathConfig(t, conf1),
+				Config: testAccLinuxFileProviderOverrideRecyclePathConfig(t, conf1),
 			},
 		},
 	})
 }
 
-func testAccLinuxFileRecyclePathConfig(t *testing.T, conf tfConf) (s string) {
+func testAccLinuxFileProviderOverrideRecyclePathConfig(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 		provider "linux" {
 		    {{- .Provider.Serialize | nindent 4 }}
@@ -343,7 +360,7 @@ func testAccLinuxFileRecyclePathConfig(t *testing.T, conf tfConf) (s string) {
 		    }
 		    connection {
 		        type = "ssh"
-		        {{- .Provider.Serialize | nindent 8 }}
+		        {{- ((.ProviderOverride.Copy).Without "id").Serialize | nindent 8 }}
 		    }
 		    provisioner "remote-exec" {
 		        when = destroy
@@ -359,6 +376,9 @@ func testAccLinuxFileRecyclePathConfig(t *testing.T, conf tfConf) (s string) {
 
 		resource "linux_file" "file" {
 		    depends_on = [ null_resource.destroy_checker ]
+		    provider_override {
+		        {{- .ProviderOverride.Serialize | nindent 8 }}
+		    }
 		    {{- .File.Serialize | nindent 4 }}
 		}
 
@@ -373,7 +393,7 @@ func testAccLinuxFileRecyclePathConfig(t *testing.T, conf tfConf) (s string) {
 		    }
 		    connection {
 		        type = "ssh"
-		        {{- .Provider.Serialize | nindent 8 }}
+		        {{- ((.ProviderOverride.Copy).Without "id").Serialize | nindent 8 }}
 		    }
 		    provisioner "file" {
 		        content = self.triggers["content"]

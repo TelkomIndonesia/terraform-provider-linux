@@ -22,6 +22,7 @@ resource "linux_file" "file" {
 
 The following arguments are supported:
 
+- `provider_override` - (Optional) see [provider_override](../#provider-override).
 - `path` - (Required, string) Absolute path of the file. Parent directory will be prepared as needed.
 - `content` - (Optional, string) Content of the file to create. Default to empty string.
 - `owner` - (Optional, int) User ID of the folder. Default `0`.
