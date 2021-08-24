@@ -36,7 +36,12 @@ type handlerScriptDataSource struct {
 }
 
 func (h handlerScriptDataSource) Read(ctx context.Context, rd *schema.ResourceData, meta interface{}) (d diag.Diagnostics) {
-	err := h.hsr.read(ctx, rd, meta.(*linux))
+	l, err := getLinux(meta.(*linuxPool), rd)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
+	err = h.hsr.read(ctx, rd, l)
 	if err != nil {
 		d = diag.FromErr(err)
 	}

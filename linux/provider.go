@@ -10,6 +10,8 @@ import (
 )
 
 const (
+	attrProviderID = "id"
+
 	attrProviderHost    = "host"
 	attrProviderPort    = "port"
 	attrProviderHostKey = "host_key"
@@ -35,10 +37,12 @@ const (
 )
 
 var schemaProvider = map[string]*schema.Schema{
+
 	attrProviderHost: {
 		Type:        schema.TypeString,
 		Description: "The address of the resource to connect to.",
-		Required:    true,
+		Optional:    true,
+		Default:     "127.0.0.1",
 	},
 	attrProviderPort: {
 		Type:        schema.TypeInt,
@@ -135,6 +139,20 @@ var schemaProvider = map[string]*schema.Schema{
 	},
 }
 
+var subSchemaProviderOverride = func() (m map[string]*schema.Schema) {
+	m = map[string]*schema.Schema{
+		attrProviderID: {
+			Type:        schema.TypeString,
+			Description: "Connection instance ID for locking purpose when defined in resource/datasource",
+			Required:    true,
+		},
+	}
+	for k, v := range schemaProvider {
+		m[k] = v
+	}
+	return
+}()
+
 func newLinuxFromSchema(d *schema.ResourceData) (l *linux, err error) {
 	connInfo := map[string]string{
 		"type": "ssh",
@@ -165,15 +183,28 @@ func newLinuxFromSchema(d *schema.ResourceData) (l *linux, err error) {
 	return &linux{connInfo: connInfo, commOnce: sync.Once{}}, nil
 }
 
+func getLinux(lp *linuxPool, d *schema.ResourceData) (l *linux, err error) {
+	var con map[string]string
+
+	pro := cast.ToSlice(d.Get(attrScriptProviderOverride))
+	if len(pro) <= 0 {
+		return lp.def, nil
+	}
+
+	con = cast.ToStringMapString(pro[0])
+	return lp.getOrSet(con[attrProviderID], &linux{connInfo: con, commOnce: sync.Once{}})
+}
+
 func Provider() *schema.Provider {
 	return &schema.Provider{
 		Schema: schemaProvider,
-		ConfigureContextFunc: func(ctx context.Context, d *schema.ResourceData) (l interface{}, diags diag.Diagnostics) {
+		ConfigureContextFunc: func(ctx context.Context, d *schema.ResourceData) (lp interface{}, diags diag.Diagnostics) {
 			l, err := newLinuxFromSchema(d)
 			if err != nil {
 				return nil, diag.FromErr(err)
 			}
-			return l, diags
+			lp = &linuxPool{def: l, pool: make(map[string]*linux)}
+			return
 		},
 		DataSourcesMap: map[string]*schema.Resource{
 			"linux_script": scriptDataSource(),
