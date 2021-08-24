@@ -9,18 +9,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAccLinuxDirectoryBasic(t *testing.T) {
+func TestAccLinuxDirectoryProviderOverrideBasic(t *testing.T) {
 	conf1 := tfConf{
-		Provider:  testAccProvider,
-		Directory: tNewTFMapDirectory().Without(attrDirectoryOwner, attrDirectoryGroup, attrDirectoryMode),
+		Provider:         testAccOverridenProvider,
+		ProviderOverride: testAccProvider.Copy().With("id", `"someid"`),
+		Directory:        tNewTFMapDirectory().Without(attrDirectoryOwner, attrDirectoryGroup, attrDirectoryMode),
 	}
 	conf2 := conf1.Copy(func(tc *tfConf) {
 		tc.Directory.With(attrDirectoryMode, "700")
 	})
 	conf3 := tfConf{
-		Provider:  testAccProvider,
-		Directory: tNewTFMapDirectory(),
-		Extra:     tfmap{"path_previous": conf1.Directory[attrDirectoryPath]},
+		Provider:         testAccOverridenProvider,
+		ProviderOverride: testAccProvider.Copy().With("id", `"someid"`),
+		Directory:        tNewTFMapDirectory(),
+		Extra:            tfmap{"path_previous": conf1.Directory[attrDirectoryPath]},
 	}
 
 	resource.Test(t, resource.TestCase{
@@ -28,19 +30,19 @@ func TestAccLinuxDirectoryBasic(t *testing.T) {
 		Providers:         testAccProviders,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccLinuxDirectoryBasicConfig(t, conf1),
+				Config: testAccLinuxDirectoryProviderOverrideBasicConfig(t, conf1),
 			},
 			{
-				Config: testAccLinuxDirectoryBasicConfig(t, conf2),
+				Config: testAccLinuxDirectoryProviderOverrideBasicConfig(t, conf2),
 			},
 			{
-				Config: testAccLinuxDirectoryBasicConfig(t, conf3),
+				Config: testAccLinuxDirectoryProviderOverrideBasicConfig(t, conf3),
 			},
 		},
 	})
 }
 
-func testAccLinuxDirectoryBasicConfig(t *testing.T, conf tfConf) (s string) {
+func testAccLinuxDirectoryProviderOverrideBasicConfig(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 		provider "linux" {
 		    {{- .Provider.Serialize | nindent 4 }}
@@ -49,7 +51,7 @@ func testAccLinuxDirectoryBasicConfig(t *testing.T, conf tfConf) (s string) {
 		resource "null_resource" "destroy_validator" {
 		    connection {
 		        type = "ssh"
-		        {{- .Provider.Serialize | nindent 8 }}
+		        {{- ((.ProviderOverride.Copy).Without "id").Serialize | nindent 8 }}
 		    }
 		    provisioner "remote-exec" {
 		        inline = [
@@ -71,6 +73,9 @@ func testAccLinuxDirectoryBasicConfig(t *testing.T, conf tfConf) (s string) {
 		resource "linux_directory" "directory" {
 		    depends_on = [ null_resource.destroy_validator ]  
 		
+		    provider_override {
+		        {{- .ProviderOverride.Serialize | nindent 8 }}
+		    }
 		    {{- .Directory.Serialize | nindent 4 }}
 		}
 
@@ -82,7 +87,7 @@ func testAccLinuxDirectoryBasicConfig(t *testing.T, conf tfConf) (s string) {
 		    
 		    connection {
 		        type = "ssh"
-		        {{- .Provider.Serialize | nindent 8 }}
+		        {{- ((.ProviderOverride.Copy).Without "id").Serialize | nindent 8 }}
 		    }
 		    provisioner "file" {
 		        content = self.triggers["content"]
@@ -100,7 +105,7 @@ func testAccLinuxDirectoryBasicConfig(t *testing.T, conf tfConf) (s string) {
 		    }
 		    connection {
 		        type = "ssh"
-		        {{- .Provider.Serialize | nindent 8 }}
+		        {{- ((.ProviderOverride.Copy).Without "id").Serialize | nindent 8 }}
 		    }
 		    provisioner "remote-exec" {
 		        inline = [
@@ -123,18 +128,20 @@ func testAccLinuxDirectoryBasicConfig(t *testing.T, conf tfConf) (s string) {
 	return
 }
 
-func TestAccLinuxDirectoryOverwrite(t *testing.T) {
+func TestAccLinuxDirectoryProviderOverrideOverwrite(t *testing.T) {
 	conf1 := tfConf{
-		Provider:  testAccProvider,
-		Directory: tNewTFMapDirectory(),
+		Provider:         testAccOverridenProvider,
+		ProviderOverride: testAccProvider.Copy().With("id", `"someid"`),
+		Directory:        tNewTFMapDirectory(),
 	}
 	conf2 := conf1.Copy(func(tc *tfConf) {
 		tc.Directory.With(attrDirectoryOverwrite, "true")
 	})
 	conf3 := tfConf{
-		Provider:  testAccProvider,
-		Directory: tNewTFMapDirectory(),
-		Extra:     tfmap{"path_previous": conf1.Directory[attrDirectoryPath]},
+		Provider:         testAccOverridenProvider,
+		ProviderOverride: testAccProvider.Copy().With("id", `"someid"`),
+		Directory:        tNewTFMapDirectory(),
+		Extra:            tfmap{"path_previous": conf1.Directory[attrDirectoryPath]},
 	}
 	conf4 := conf3.Copy(func(tc *tfConf) {
 		tc.Directory.With(attrDirectoryOverwrite, "true")
@@ -145,24 +152,24 @@ func TestAccLinuxDirectoryOverwrite(t *testing.T) {
 		Providers:         testAccProviders,
 		Steps: []resource.TestStep{
 			{
-				Config:      testAccLinuxDirectoryeOverwriteConfig(t, conf1),
+				Config:      testAccLinuxDirectoryProviderOverrideeOverwriteConfig(t, conf1),
 				ExpectError: regexp.MustCompile(" exist"),
 			},
 			{
-				Config: testAccLinuxDirectoryeOverwriteConfig(t, conf2),
+				Config: testAccLinuxDirectoryProviderOverrideeOverwriteConfig(t, conf2),
 			},
 			{
-				Config:      testAccLinuxDirectoryeOverwriteConfig(t, conf3),
+				Config:      testAccLinuxDirectoryProviderOverrideeOverwriteConfig(t, conf3),
 				ExpectError: regexp.MustCompile(" exist"),
 			},
 			{
-				Config: testAccLinuxDirectoryeOverwriteConfig(t, conf4),
+				Config: testAccLinuxDirectoryProviderOverrideeOverwriteConfig(t, conf4),
 			},
 		},
 	})
 }
 
-func testAccLinuxDirectoryeOverwriteConfig(t *testing.T, conf tfConf) (s string) {
+func testAccLinuxDirectoryProviderOverrideeOverwriteConfig(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 		provider "linux" {
 		    {{- .Provider.Serialize | nindent 4 }}
@@ -171,7 +178,7 @@ func testAccLinuxDirectoryeOverwriteConfig(t *testing.T, conf tfConf) (s string)
 		resource "null_resource" "existing" {
 		    connection {
 		        type = "ssh"
-		        {{- .Provider.Serialize | nindent 8 }}
+		        {{- ((.ProviderOverride.Copy).Without "id").Serialize | nindent 8 }}
 		    }
 		    triggers = {
 		        path = {{ .Directory.path }}
@@ -189,6 +196,9 @@ func testAccLinuxDirectoryeOverwriteConfig(t *testing.T, conf tfConf) (s string)
 		resource "linux_directory" "directory" {
 		    depends_on = [ null_resource.existing ]  
 		
+		    provider_override {
+		        {{- .ProviderOverride.Serialize | nindent 8 }}
+		    }
 		    {{- .Directory.Serialize | nindent 4 }}
 		}
 
@@ -202,7 +212,7 @@ func testAccLinuxDirectoryeOverwriteConfig(t *testing.T, conf tfConf) (s string)
 		    }
 		    connection {
 		        type = "ssh"
-		        {{- .Provider.Serialize | nindent 8 }}
+		        {{- ((.ProviderOverride.Copy).Without "id").Serialize | nindent 8 }}
 		    }
 		    provisioner "remote-exec" {
 		        inline = [
@@ -226,10 +236,11 @@ func testAccLinuxDirectoryeOverwriteConfig(t *testing.T, conf tfConf) (s string)
 	return
 }
 
-func TestAccLinuxDirectoryRecyclePath(t *testing.T) {
+func TestAccLinuxDirectoryProviderOverrideRecyclePath(t *testing.T) {
 	conf1 := tfConf{
-		Provider:  testAccProvider,
-		Directory: tNewTFMapDirectory().With(attrDirectoryRecyclePath, `"/tmp/recycle"`),
+		Provider:         testAccOverridenProvider,
+		ProviderOverride: testAccProvider.Copy().With("id", `"someid"`),
+		Directory:        tNewTFMapDirectory().With(attrDirectoryRecyclePath, `"/tmp/recycle"`),
 	}
 	resource.Test(t, resource.TestCase{
 		ExternalProviders: map[string]resource.ExternalProvider{"null": {}},
@@ -237,13 +248,13 @@ func TestAccLinuxDirectoryRecyclePath(t *testing.T) {
 		Providers:         testAccProviders,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccLinuxDirectoryRecyclePathConfig(t, conf1),
+				Config: testAccLinuxDirectoryProviderOverrideRecyclePathConfig(t, conf1),
 			},
 		},
 	})
 }
 
-func testAccLinuxDirectoryRecyclePathConfig(t *testing.T, conf tfConf) (s string) {
+func testAccLinuxDirectoryProviderOverrideRecyclePathConfig(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 		provider "linux" {
 		    {{- .Provider.Serialize | nindent 4 }}
@@ -256,7 +267,7 @@ func testAccLinuxDirectoryRecyclePathConfig(t *testing.T, conf tfConf) (s string
 		resource "null_resource" "destroy_validator" {
 		    connection {
 		        type = "ssh"
-		        {{- .Provider.Serialize | nindent 8 }}
+		        {{- ((.ProviderOverride.Copy).Without "id").Serialize | nindent 8 }}
 		    }
 		    triggers = {
 			    filename = local.filename
@@ -278,6 +289,9 @@ func testAccLinuxDirectoryRecyclePathConfig(t *testing.T, conf tfConf) (s string
 		resource "linux_directory" "directory" {
 		    depends_on = [ null_resource.destroy_validator ]  
 		
+		    provider_override {
+		        {{- .ProviderOverride.Serialize | nindent 8 }}
+		    }
 		    {{- .Directory.Serialize | nindent 4 }}
 		}
 
@@ -289,7 +303,7 @@ func testAccLinuxDirectoryRecyclePathConfig(t *testing.T, conf tfConf) (s string
 		    
 		    connection {
 		        type = "ssh"
-		        {{- .Provider.Serialize | nindent 8 }}
+		        {{- ((.ProviderOverride.Copy).Without "id").Serialize | nindent 8 }}
 		    }
 		    provisioner "file" {
 		        content = self.triggers["content"]
@@ -307,7 +321,7 @@ func testAccLinuxDirectoryRecyclePathConfig(t *testing.T, conf tfConf) (s string
 		    }
 		    connection {
 		        type = "ssh"
-		        {{- .Provider.Serialize | nindent 8 }}
+		        {{- ((.ProviderOverride.Copy).Without "id").Serialize | nindent 8 }}
 		    }
 		    provisioner "remote-exec" {
 		        inline = [

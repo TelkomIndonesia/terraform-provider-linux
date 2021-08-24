@@ -19,6 +19,7 @@ resource "linux_file" "file" {
 
 The following arguments are supported:
 
+- `provider_override` - (Optional) see [provider_override](../#provider-override).
 - `path` - (Required, string) Absolute path of the directory. Parent directory will be prepared as needed. Changing this will move all contents under the current directory to the new directory.
 - `owner` - (Optional, int) User ID of the folder. Default `0`.
 - `group` - (Optional, int) Group ID of the folder. Default `0`.

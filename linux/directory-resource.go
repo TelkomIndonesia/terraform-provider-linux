@@ -13,15 +13,25 @@ import (
 )
 
 const (
-	attrDirectoryPath        = "path"
-	attrDirectoryOwner       = "owner"
-	attrDirectoryGroup       = "group"
-	attrDirectoryMode        = "mode"
-	attrDirectoryOverwrite   = "overwrite"
-	attrDirectoryRecyclePath = "recycle_path"
+	attrDirectoryProviderOverride = "provider_override"
+	attrDirectoryPath             = "path"
+	attrDirectoryOwner            = "owner"
+	attrDirectoryGroup            = "group"
+	attrDirectoryMode             = "mode"
+	attrDirectoryOverwrite        = "overwrite"
+	attrDirectoryRecyclePath      = "recycle_path"
 )
 
 var schemaDirectoryResource = map[string]*schema.Schema{
+	attrDirectoryProviderOverride: {
+		Type:     schema.TypeList,
+		Optional: true,
+		MaxItems: 1,
+		Elem: &schema.Resource{
+			Schema: subSchemaProviderOverride,
+		},
+	},
+
 	attrDirectoryPath: {
 		Type:     schema.TypeString,
 		Required: true,
@@ -130,7 +140,11 @@ func (handlerDirectoryResource) updateResourceData(d *directory, rd *schema.Reso
 }
 
 func (h handlerDirectoryResource) Read(ctx context.Context, rd *schema.ResourceData, meta interface{}) (dg diag.Diagnostics) {
-	l := meta.(*linux)
+	l, err := getLinux(meta.(*linuxPool), rd)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
 	d, err := l.readDirectory(ctx, cast.ToString(rd.Get(attrDirectoryPath)))
 	if err != nil && !errors.Is(err, errPathNotExist) {
 		return diag.FromErr(err)
@@ -145,7 +159,11 @@ func (h handlerDirectoryResource) Read(ctx context.Context, rd *schema.ResourceD
 }
 
 func (h handlerDirectoryResource) Create(ctx context.Context, rd *schema.ResourceData, meta interface{}) (dg diag.Diagnostics) {
-	l := meta.(*linux)
+	l, err := getLinux(meta.(*linuxPool), rd)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
 	d := h.newDirectory(rd)
 	if err := l.createDirectory(ctx, d); err != nil {
 		return diag.FromErr(err)
@@ -161,9 +179,13 @@ func (h handlerDirectoryResource) Create(ctx context.Context, rd *schema.Resourc
 }
 
 func (h handlerDirectoryResource) Update(ctx context.Context, rd *schema.ResourceData, meta interface{}) (dg diag.Diagnostics) {
-	l := meta.(*linux)
+	l, err := getLinux(meta.(*linuxPool), rd)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
 	old, new := h.newDiffedDirectory(rd)
-	err := l.updateDirectory(ctx, old, new)
+	err = l.updateDirectory(ctx, old, new)
 	if err != nil {
 		_ = h.updateResourceData(old, rd) // WARN: see https://github.com/hashicorp/terraform-plugin-sdk/issues/476
 		return diag.FromErr(err)
@@ -173,7 +195,11 @@ func (h handlerDirectoryResource) Update(ctx context.Context, rd *schema.Resourc
 }
 
 func (h handlerDirectoryResource) Delete(ctx context.Context, rd *schema.ResourceData, meta interface{}) (d diag.Diagnostics) {
-	l := meta.(*linux)
+	l, err := getLinux(meta.(*linuxPool), rd)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
 	if err := l.deleteDirectory(ctx, h.newDirectory(rd)); err != nil {
 		return diag.FromErr(err)
 	}

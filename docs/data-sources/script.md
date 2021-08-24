@@ -5,15 +5,12 @@ Read arbritrary resource by specifying commands that will be uploaded and execut
 ## Example Usage
 
 ```hcl
-locals {
-    package_name = "apache2"
-}
-resource "linux_script" "install_package" {
+data "linux_script" "package_version" {
     lifecycle_commands {
         read = "apt-cache policy $PACKAGE_NAME | grep 'Installed:' | grep -v '(none)' | awk '{ print $2 }' | xargs | tr -d '\n'"
     }
     environment = {
-        PACKAGE_NAME = local.package_name
+        PACKAGE_NAME = "apache2"
         PACKAGE_VERSION = "2.4.18-2ubuntu3.4"
     }
 }
@@ -23,6 +20,7 @@ resource "linux_script" "install_package" {
 
 The following arguments are supported:
 
+- `provider_override` - (Optional) see [provider_override](../#provider-override).
 - `lifecycle_commands` - (Required) see [lifecycle_commands](#lifecycle_commands).
 - `interpreter` - (Optional, string list) Interpreter for running each `lifecycle_commands`. Default empty list.
 - `working_directory` - (Optional, string) The working directory where each `lifecycle_commands` is executed. Default empty string.
