@@ -66,11 +66,13 @@ var schemaProvider = map[string]*schema.Schema{
 		Type:        schema.TypeString,
 		Optional:    true,
 		Description: "The password we should use for the connection.",
+		Sensitive:   true,
 	},
 	attrProviderPrivateKey: {
 		Type:        schema.TypeString,
 		Optional:    true,
 		Description: "The contents of an SSH key to use for the connection. These can be loaded from a file on disk using the `file` function. This takes preference over the `password` if provided.",
+		Sensitive:   true,
 	},
 	attrProviderCertificate: {
 		Type:        schema.TypeString,
@@ -113,11 +115,13 @@ var schemaProvider = map[string]*schema.Schema{
 		Type:        schema.TypeString,
 		Optional:    true,
 		Description: "The password we should use for the bastion host. Defaults to the value of the `password` field.",
+		Sensitive:   true,
 	},
 	attrProviderBastionPrivateKey: {
 		Type:        schema.TypeString,
 		Optional:    true,
 		Description: "The contents of an SSH key file to use for the bastion host. These can be loaded from a file on disk using the `file` function. Defaults to the value of the `private_key` field.",
+		Sensitive:   true,
 	},
 	attrProviderBastionCertificate: {
 		Type:        schema.TypeString,
