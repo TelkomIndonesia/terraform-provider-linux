@@ -211,7 +211,8 @@ func Provider() *schema.Provider {
 			return
 		},
 		DataSourcesMap: map[string]*schema.Resource{
-			"linux_script": scriptDataSource(),
+			"linux_script":        scriptDataSource(),
+			"linux_local_forward": localforwardDataSource(),
 		},
 		ResourcesMap: map[string]*schema.Resource{
 			"linux_file":      fileResource(),
