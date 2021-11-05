@@ -186,6 +186,7 @@ type tfConf struct {
 	Directory        tfmap
 	Script           tfScript
 	DataScript       tfScript
+	LocalForward     tfmap
 	Extra            tfmap
 }
 

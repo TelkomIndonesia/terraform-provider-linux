@@ -228,3 +228,42 @@ func (l *linux) remove(ctx context.Context, path, recyclePath string) (err error
 	}
 	return l.exec(ctx, &remote.Cmd{Command: cmd})
 }
+
+func (l *linux) lforwardTCP(ctx context.Context, local string, remote string) (err error) {
+	comm, err := l.communicator(ctx)
+	if err != nil {
+		return err
+	}
+
+	listener, err := net.Listen("tcp", local)
+	if err != nil {
+		return err
+	}
+
+	go func(ctx context.Context) {
+		defer listener.Close()
+		for {
+			select {
+			case <-ctx.Done():
+			default:
+			}
+
+			lconn, err := listener.Accept()
+			if err != nil {
+				continue
+			}
+
+			rconn, err := comm.Dial("tcp", remote)
+			if err != nil {
+				lconn.Close()
+				continue
+			}
+
+			// What to do here if its error
+			go io.Copy(lconn, rconn)
+			go io.Copy(rconn, lconn)
+		}
+	}(ctx)
+
+	return
+}
