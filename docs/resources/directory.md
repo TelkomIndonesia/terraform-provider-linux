@@ -5,8 +5,8 @@ Manage linux directory with support for Terraform update lifecycle.
 ## Example Usage
 
 ```hcl
-resource "linux_file" "file" {
-    path = "/tmp/linux/file"
+resource "linux_directory" "file" {
+    path = "/tmp/linux/directory"
     owner = 1000
     group = 1000
     mode = "755"
