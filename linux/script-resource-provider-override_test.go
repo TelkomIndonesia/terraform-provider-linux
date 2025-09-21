@@ -50,10 +50,12 @@ func TestAccLinuxScriptProviderOverrideBasic(t *testing.T) {
 func testAccLinuxScriptProviderOverrideBasicConfig(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 		provider "linux" {
+		    alias = "test"
 		    {{- .Provider.Serialize | nindent 4 }}
 		}
 
 		resource "null_resource" "destroy_validator" {
+			provider = linux.test
 		    connection {
 		        type = "ssh"
 		        {{- ((.ProviderOverride.Copy).Without "id").Serialize | nindent 8 }}
@@ -71,6 +73,7 @@ func testAccLinuxScriptProviderOverrideBasicConfig(t *testing.T, conf tfConf) (s
 		}
 
 		resource "linux_script" "script" {
+		    provider = linux.test
 		    depends_on = [ null_resource.destroy_validator ]  
 			
 		    provider_override {
@@ -193,10 +196,12 @@ func TestAccLinuxScriptProviderOverrideNoUpdate(t *testing.T) {
 func testAccLinuxScriptProviderOverrideNoUpdateConfig(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 		provider "linux" {
+			alias = "test"
 			{{- .Provider.Serialize | nindent 4 }}
 		}
 
 		resource "null_resource" "destroy_validator" {
+			provider = linux.test
 			connection {
 				type = "ssh"
 				{{- ((.ProviderOverride.Copy).Without "id").Serialize | nindent 8 }}
@@ -235,6 +240,7 @@ func testAccLinuxScriptProviderOverrideNoUpdateConfig(t *testing.T, conf tfConf)
 		}
 
 		resource "linux_script" "script" {
+			provider = linux.test
 			depends_on = [ null_resource.destroy_validator, null_resource.directory ]  
 		    
 			provider_override {
@@ -421,9 +427,11 @@ func TestAccLinuxScriptProviderOverrideUpdatedScript(t *testing.T) {
 func testAccLinuxScriptProviderOverrideUpdatedScriptConfig(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 		provider "linux" {
+		    alias = "test"
 			{{- .Provider.Serialize | nindent 4 }}
 		}
 		resource "linux_script" "script" {
+		    provider = linux.test
 		    provider_override {
 		        {{- .ProviderOverride.Serialize | nindent 8 }}
 		    }
@@ -515,9 +523,11 @@ func TestAccLinuxScriptProviderOverrideFailedRead(t *testing.T) {
 func testAccLinuxScriptProviderOverrideFailedReadConfig(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 		provider "linux" {
+		    alias = "test"
 		    {{- .Provider.Serialize | nindent 4 }}
 		}
 		resource "linux_script" "create_file" {
+		    provider = linux.test
 		    provider_override {
 		        {{- .ProviderOverride.Serialize | nindent 8 }}
 		    }
@@ -649,10 +659,12 @@ func TestAccLinuxScriptProviderOverrideComputedDependent(t *testing.T) {
 func testAccLinuxScriptProviderOverrideComputedConfig(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 		provider "linux" {
+		    alias = "test"
 		    {{- .Provider.Serialize | nindent 4 }}
 		}
 
 		resource "linux_script" "linux_script" {
+		    provider = linux.test
 		    provider_override {
 		        {{- .ProviderOverride.Serialize | nindent 8 }}
 		    }

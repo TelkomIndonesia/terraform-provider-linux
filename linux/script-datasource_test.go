@@ -74,14 +74,17 @@ func TestAccLinuxDataScriptBasic(t *testing.T) {
 func testAccLinuxDataScriptBasicConfig(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 		provider "linux" {
+			alias = "test"
 		    {{- .Provider.Serialize | nindent 4 }}
 		}
 
 		resource "linux_script" "linux_script" {
+			provider = linux.test
 		    {{ .Script.Serialize | nindent 4 }}
 		}
 
 		data "linux_script" "linux_script" {	
+			provider = linux.test
 			depends_on = [ linux_script.linux_script ]	
 			{{ .DataScript.Serialize | nindent 4 }}
 		}

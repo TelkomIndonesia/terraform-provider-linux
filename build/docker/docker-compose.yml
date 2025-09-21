@@ -10,5 +10,5 @@ services:
       - ../../linux/testdata/id_rsa.pub:/root/.ssh/authorized_keys:ro
       - /tmp/:/tmp/
     ports:
-      - "22:22"
+      - "${TEST_ACC_LINUX_PROVIDER_PORT:-22}:22"
     restart: unless-stopped

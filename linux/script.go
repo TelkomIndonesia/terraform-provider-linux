@@ -8,7 +8,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/alessio/shellescape"
+	"al.essio.dev/pkg/shellescape"
 	"github.com/hashicorp/terraform/communicator/remote"
 )
 

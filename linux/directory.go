@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/alessio/shellescape"
+	"al.essio.dev/pkg/shellescape"
 	"github.com/hashicorp/terraform/communicator/remote"
 )
 

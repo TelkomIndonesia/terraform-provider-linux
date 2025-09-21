@@ -46,6 +46,7 @@ func TestAccLinuxFileProviderOverrideBasic(t *testing.T) {
 func testAccLinuxFileProviderOverrideBasicConfig(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 		provider "linux" {
+			alias = "test"
 		    {{- .Provider.Serialize | nindent 4 }}
 		}
 
@@ -65,6 +66,7 @@ func testAccLinuxFileProviderOverrideBasicConfig(t *testing.T, conf tfConf) (s s
 		}
 
 		resource "linux_file" "file" {
+			provider = "linux.test"
 		    depends_on = [ null_resource.destroy_validator ]  
 			
 		    provider_override {
@@ -161,6 +163,7 @@ func TestAccLinuxFileProviderOverrideOverride(t *testing.T) {
 func testAccLinuxFileProviderOverrideOverrideConfig(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 		provider "linux" {
+			alias = "test"
 		    {{- .Provider.Serialize | nindent 4 }}
 		}
 
@@ -182,6 +185,7 @@ func testAccLinuxFileProviderOverrideOverrideConfig(t *testing.T, conf tfConf) (
 		}
 
 		resource "linux_file" "file" {
+			provider = "linux.test"
 		    depends_on = [ null_resource.existing_file ]  
 		
 		    provider_override {
@@ -262,6 +266,7 @@ func TestAccLinuxFileProviderOverrideIgnoreContent(t *testing.T) {
 func testAccLinuxFileProviderOverrideIgnoreContentConfig(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 		provider "linux" {
+			alias = "test"
 		    {{- .Provider.Serialize | nindent 4 }}
 		}
 
@@ -270,6 +275,7 @@ func testAccLinuxFileProviderOverrideIgnoreContentConfig(t *testing.T, conf tfCo
 		}
 
 		resource "linux_file" "file" {
+			provider = "linux.test"
 		    provider_override {
 		        {{- .ProviderOverride.Serialize | nindent 8 }}
 		    }
@@ -347,6 +353,7 @@ func TestAccLinuxFileProviderOverrideRecyclePath(t *testing.T) {
 func testAccLinuxFileProviderOverrideRecyclePathConfig(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 		provider "linux" {
+			alias = "test"
 		    {{- .Provider.Serialize | nindent 4 }}
 		}
 
@@ -375,6 +382,7 @@ func testAccLinuxFileProviderOverrideRecyclePathConfig(t *testing.T, conf tfConf
 		}
 
 		resource "linux_file" "file" {
+			provider = "linux.test"
 		    depends_on = [ null_resource.destroy_checker ]
 		    provider_override {
 		        {{- .ProviderOverride.Serialize | nindent 8 }}

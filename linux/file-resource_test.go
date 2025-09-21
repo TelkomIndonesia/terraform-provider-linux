@@ -44,6 +44,7 @@ func TestAccLinuxFileBasic(t *testing.T) {
 func testAccLinuxFileBasicConfig(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 		provider "linux" {
+			alias = "test"
 		    {{- .Provider.Serialize | nindent 4 }}
 		}
 
@@ -63,6 +64,7 @@ func testAccLinuxFileBasicConfig(t *testing.T, conf tfConf) (s string) {
 		}
 
 		resource "linux_file" "file" {
+			provider = "linux.test"
 		    depends_on = [ null_resource.destroy_validator ]  
 		
 		    {{- .File.Serialize | nindent 4 }}
@@ -153,6 +155,7 @@ func TestAccLinuxFileOverride(t *testing.T) {
 func testAccLinuxFileOverrideConfig(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 		provider "linux" {
+			alias = "test"
 		    {{- .Provider.Serialize | nindent 4 }}
 		}
 
@@ -174,6 +177,7 @@ func testAccLinuxFileOverrideConfig(t *testing.T, conf tfConf) (s string) {
 		}
 
 		resource "linux_file" "file" {
+			provider = "linux.test"
 		    depends_on = [ null_resource.existing_file ]  
 		
 		    {{- .File.Serialize | nindent 4 }}
@@ -249,6 +253,7 @@ func TestAccLinuxFileIgnoreContent(t *testing.T) {
 func testAccLinuxFileIgnoreContentConfig(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 		provider "linux" {
+			alias = "test"
 		    {{- .Provider.Serialize | nindent 4 }}
 		}
 
@@ -257,6 +262,7 @@ func testAccLinuxFileIgnoreContentConfig(t *testing.T, conf tfConf) (s string) {
 		}
 
 		resource "linux_file" "file" {
+			provider = "linux.test"
 		    {{- .File.Serialize | nindent 4 }}
 
 		    connection {
@@ -330,6 +336,7 @@ func TestAccLinuxFileRecyclePath(t *testing.T) {
 func testAccLinuxFileRecyclePathConfig(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 		provider "linux" {
+			alias = "test"
 		    {{- .Provider.Serialize | nindent 4 }}
 		}
 
@@ -358,6 +365,7 @@ func testAccLinuxFileRecyclePathConfig(t *testing.T, conf tfConf) (s string) {
 		}
 
 		resource "linux_file" "file" {
+			provider = "linux.test"
 		    depends_on = [ null_resource.destroy_checker ]
 		    {{- .File.Serialize | nindent 4 }}
 		}

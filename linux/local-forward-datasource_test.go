@@ -32,10 +32,12 @@ func TestAccLinuxLocalForwardDatasourceBasic(t *testing.T) {
 func testAccLinuxLocalForwardDatasourceBasic(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 		provider "linux" {
+			alias = "test"
 		    {{- .Provider.Serialize | nindent 4 }}
 		}
 
 		data "linux_local_forward" "mockbin" {	
+			provider = "linux.test"
 			{{ .LocalForward.Serialize | nindent 4 }}
 		}
 

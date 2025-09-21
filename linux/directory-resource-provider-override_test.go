@@ -45,6 +45,7 @@ func TestAccLinuxDirectoryProviderOverrideBasic(t *testing.T) {
 func testAccLinuxDirectoryProviderOverrideBasicConfig(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 		provider "linux" {
+			alias = "test"
 		    {{- .Provider.Serialize | nindent 4 }}
 		}
 
@@ -71,6 +72,7 @@ func testAccLinuxDirectoryProviderOverrideBasicConfig(t *testing.T, conf tfConf)
 		}
 
 		resource "linux_directory" "directory" {
+			provider = linux.test
 		    depends_on = [ null_resource.destroy_validator ]  
 		
 		    provider_override {
@@ -172,6 +174,7 @@ func TestAccLinuxDirectoryProviderOverrideOverwrite(t *testing.T) {
 func testAccLinuxDirectoryProviderOverrideeOverwriteConfig(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 		provider "linux" {
+			alias = "test"
 		    {{- .Provider.Serialize | nindent 4 }}
 		}
 
@@ -194,6 +197,7 @@ func testAccLinuxDirectoryProviderOverrideeOverwriteConfig(t *testing.T, conf tf
 		}
 
 		resource "linux_directory" "directory" {
+			provider = linux.test
 		    depends_on = [ null_resource.existing ]  
 		
 		    provider_override {
@@ -257,6 +261,7 @@ func TestAccLinuxDirectoryProviderOverrideRecyclePath(t *testing.T) {
 func testAccLinuxDirectoryProviderOverrideRecyclePathConfig(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 		provider "linux" {
+			alias = "test"
 		    {{- .Provider.Serialize | nindent 4 }}
 		}
 
@@ -287,6 +292,7 @@ func testAccLinuxDirectoryProviderOverrideRecyclePathConfig(t *testing.T, conf t
 		}
 
 		resource "linux_directory" "directory" {
+			provider = linux.test
 		    depends_on = [ null_resource.destroy_validator ]  
 		
 		    provider_override {

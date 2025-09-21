@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/alessio/shellescape"
+	"al.essio.dev/pkg/shellescape"
 	"github.com/hashicorp/terraform/communicator/remote"
 	"golang.org/x/net/context"
 )

@@ -49,6 +49,7 @@ func TestAccLinuxScriptBasic(t *testing.T) {
 func testAccLinuxScriptBasicConfig(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 		provider "linux" {
+		    alias = "test"
 		    {{- .Provider.Serialize | nindent 4 }}
 		}
 
@@ -70,6 +71,7 @@ func testAccLinuxScriptBasicConfig(t *testing.T, conf tfConf) (s string) {
 		}
 
 		resource "linux_script" "script" {
+		    provider = linux.test
 		    depends_on = [ null_resource.destroy_validator ]  
 		
 		    lifecycle_commands {
@@ -187,6 +189,7 @@ func TestAccLinuxScriptNoUpdate(t *testing.T) {
 func testAccLinuxScriptNoUpdateConfig(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 			provider "linux" {
+			    alias = "test"
 			    {{- .Provider.Serialize | nindent 4 }}
 			}
 	
@@ -229,6 +232,7 @@ func testAccLinuxScriptNoUpdateConfig(t *testing.T, conf tfConf) (s string) {
 			}
 	
 			resource "linux_script" "script" {
+				provider = linux.test
 			    depends_on = [ null_resource.destroy_validator, null_resource.directory ]  
 			    lifecycle_commands {
 			        create = <<-EOF
@@ -409,9 +413,11 @@ func TestAccLinuxScriptUpdatedScript(t *testing.T) {
 func testAccLinuxScriptUpdatedScriptConfig(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 		provider "linux" {
+			alias = "test"
 			{{- .Provider.Serialize | nindent 4 }}
 		}
 		resource "linux_script" "script" {
+			provider = linux.test
 			{{- .Script.Serialize | nindent 4 }}
 		}
 	`)
@@ -499,9 +505,11 @@ func TestAccLinuxScriptFailedRead(t *testing.T) {
 func testAccLinuxScriptFailedReadConfig(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 		provider "linux" {
+		    alias = "test"
 		    {{- .Provider.Serialize | nindent 4 }}
 		}
 		resource "linux_script" "create_file" {
+		    provider = linux.test
 		    {{- .Script.Serialize | nindent 4 }}
 
 		    connection {
@@ -628,10 +636,12 @@ func TestAccLinuxScriptComputedDependent(t *testing.T) {
 func testAccLinuxScriptComputedConfig(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 		provider "linux" {
+		    alias = "test"
 		    {{- .Provider.Serialize | nindent 4 }}
 		}
 
 		resource "linux_script" "linux_script" {
+		    provider = linux.test
 		    {{- .Script.Serialize | nindent 4 }}
 		}
 

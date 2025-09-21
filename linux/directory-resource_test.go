@@ -43,6 +43,7 @@ func TestAccLinuxDirectoryBasic(t *testing.T) {
 func testAccLinuxDirectoryBasicConfig(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 		provider "linux" {
+			alias = "test"
 		    {{- .Provider.Serialize | nindent 4 }}
 		}
 
@@ -69,6 +70,7 @@ func testAccLinuxDirectoryBasicConfig(t *testing.T, conf tfConf) (s string) {
 		}
 
 		resource "linux_directory" "directory" {
+			provider = linux.test
 		    depends_on = [ null_resource.destroy_validator ]  
 		
 		    {{- .Directory.Serialize | nindent 4 }}
@@ -165,6 +167,7 @@ func TestAccLinuxDirectoryOverwrite(t *testing.T) {
 func testAccLinuxDirectoryeOverwriteConfig(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 		provider "linux" {
+			alias = "test"
 		    {{- .Provider.Serialize | nindent 4 }}
 		}
 
@@ -187,6 +190,7 @@ func testAccLinuxDirectoryeOverwriteConfig(t *testing.T, conf tfConf) (s string)
 		}
 
 		resource "linux_directory" "directory" {
+			provider = linux.test
 		    depends_on = [ null_resource.existing ]  
 		
 		    {{- .Directory.Serialize | nindent 4 }}
@@ -246,6 +250,7 @@ func TestAccLinuxDirectoryRecyclePath(t *testing.T) {
 func testAccLinuxDirectoryRecyclePathConfig(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 		provider "linux" {
+			alias = "test"
 		    {{- .Provider.Serialize | nindent 4 }}
 		}
 
@@ -276,6 +281,7 @@ func testAccLinuxDirectoryRecyclePathConfig(t *testing.T, conf tfConf) (s string
 		}
 
 		resource "linux_directory" "directory" {
+			provider = linux.test
 		    depends_on = [ null_resource.destroy_validator ]  
 		
 		    {{- .Directory.Serialize | nindent 4 }}

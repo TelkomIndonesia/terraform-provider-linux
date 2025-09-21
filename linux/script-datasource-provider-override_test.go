@@ -75,10 +75,12 @@ func TestAccLinuxDataScriptProviderOverrideBasic(t *testing.T) {
 func testAccLinuxDataScriptProviderOverrideBasicConfig(t *testing.T, conf tfConf) (s string) {
 	tf := heredoc.Doc(`
 		provider "linux" {
+		    alias = "test"
 		    {{- .Provider.Serialize | nindent 4 }}
 		}
 
 		resource "linux_script" "linux_script" {
+		    provider = linux.test
 		    provider_override {
 		        {{- .ProviderOverride.Serialize | nindent 8 }}
 		    }
@@ -86,6 +88,7 @@ func testAccLinuxDataScriptProviderOverrideBasicConfig(t *testing.T, conf tfConf
 		}
 
 		data "linux_script" "linux_script" {	
+		    provider = linux.test
 		    depends_on = [ linux_script.linux_script ]
 
 		    provider_override {

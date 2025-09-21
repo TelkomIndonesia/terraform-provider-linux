@@ -30,10 +30,12 @@ func testAccLinuxProviderUnknownValueConf(t *testing.T) (s string) {
 
 	conf := heredoc.Doc(`
 		provider "linux" {
+			alias = "one"
 		    {{- .Provider1.Serialize | nindent 4 }}
 		}
 		
 		resource "linux_script" "script" {
+		    provider = linux.one
 		    lifecycle_commands {
 		        create = "echo -n"
 		        read = <<-EOF
@@ -100,19 +102,23 @@ func testAccLinuxProviderParallelConf(t *testing.T) (s string) {
 
 	conf := heredoc.Doc(`
 		provider "linux" {
+			alias = "test"
 		    {{- .Provider1.Serialize | nindent 4 }}
 		}
 		
 		resource "linux_file" "files" {
+		    provider = linux.test
 		    count       = 20
 		    path        = "/tmp/linux/file-${count.index}"
 		    content     = "file-${count.index}"
 		}
 		resource "linux_directory" "directories" {
+		    provider = linux.test
 		    count       = 20
 		    path        = "/tmp/linux/dir-${count.index}"
 		}
 		resource "linux_script" "script" {
+		    provider = linux.test
 		    count       = 20
 		    lifecycle_commands {
 				create = "mkdir -p /tmp/linux/script-dir"
