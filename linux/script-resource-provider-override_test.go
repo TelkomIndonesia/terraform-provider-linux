@@ -55,7 +55,6 @@ func testAccLinuxScriptProviderOverrideBasicConfig(t *testing.T, conf tfConf) (s
 		}
 
 		resource "null_resource" "destroy_validator" {
-			provider = linux.test
 		    connection {
 		        type = "ssh"
 		        {{- ((.ProviderOverride.Copy).Without "id").Serialize | nindent 8 }}
@@ -201,7 +200,6 @@ func testAccLinuxScriptProviderOverrideNoUpdateConfig(t *testing.T, conf tfConf)
 		}
 
 		resource "null_resource" "destroy_validator" {
-			provider = linux.test
 			connection {
 				type = "ssh"
 				{{- ((.ProviderOverride.Copy).Without "id").Serialize | nindent 8 }}
