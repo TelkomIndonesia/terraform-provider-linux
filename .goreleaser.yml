@@ -1,5 +1,6 @@
 # .goreleaser.yaml
 # See https://goreleaser.com for full documentation
+version: 2
 
 before:
   hooks:
