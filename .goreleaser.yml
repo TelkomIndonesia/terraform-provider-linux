@@ -44,7 +44,21 @@ checksum:
   algorithm: sha256
 
 signs:
-  - artifacts: checksum
+  - id: default
+    cmd: gpg
+    artifacts: checksum
+    args:
+      - --batch
+      - --pinentry-mode
+      - loopback
+      - --local-user
+      - '{{ .Env.GPG_FINGERPRINT }}'
+      - --passphrase
+      - '{{ .Env.GPG_PASSPHRASE }}'
+      - --output
+      - '${signature}'
+      - --detach-sign
+      - '${artifact}'
 
 release:
   draft: false
