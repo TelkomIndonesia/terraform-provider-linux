@@ -12,7 +12,7 @@ func TestAccLinuxLocalForwardDatasourceBasic(t *testing.T) {
 	conf := tfConf{
 		Provider: testAccProvider,
 		LocalForward: tfmap{
-			attrLocalForwardRHost: `"172.67.201.247"`,
+			attrLocalForwardRHost: `"34.160.111.145"`,
 			attrLocalForwardRPort: `"80"`,
 		},
 	}
@@ -36,17 +36,17 @@ func testAccLinuxLocalForwardDatasourceBasic(t *testing.T, conf tfConf) (s strin
 		    {{- .Provider.Serialize | nindent 4 }}
 		}
 
-		data "linux_local_forward" "mockbin" {	
+		data "linux_local_forward" "test" {	
 			provider = "linux.test"
 			{{ .LocalForward.Serialize | nindent 4 }}
 		}
 
 		resource "null_resource" "output" {
 			provisioner "local-exec" {
-				command = "curl -f -H 'host: mockbin.org' 'http://${ data.linux_local_forward.mockbin.remote_host }:${ data.linux_local_forward.mockbin.remote_port }/request'"
+				command = "curl -f -H 'host: ifconfig.me' 'http://${ data.linux_local_forward.test.remote_host }:${ data.linux_local_forward.test.remote_port }'"
 			}
 			provisioner "local-exec" {
-				command = "curl -f -H 'host: mockbin.org' 'http://${ data.linux_local_forward.mockbin.host }:${ data.linux_local_forward.mockbin.port }/request'"
+				command = "curl -f -H 'host: ifconfig.me' 'http://${ data.linux_local_forward.test.host }:${ data.linux_local_forward.test.port }'"
 			}
 		}
 	`)
