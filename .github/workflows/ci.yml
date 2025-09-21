@@ -15,7 +15,7 @@ jobs:
       ssh-test:
         image: rucciva/sshd:1.3.0
         ports:
-          - "22:22"
+          - "1022:22"
         env:
           SSH_ENABLE_ROOT: "true"
           SSH_ENABLE_PASSWORD_AUTH: "true"
@@ -28,12 +28,12 @@ jobs:
 
       - name: Wait for SSH server
         run: |
-          until nc -z localhost 22; do sleep 1; done
+          until nc -z localhost 1022; do sleep 1; done
 
       - name: Test
         env:
           TEST_ACC_LINUX_PROVIDER_HOST: localhost
-          TEST_ACC_LINUX_PROVIDER_PORT: 22
+          TEST_ACC_LINUX_PROVIDER_PORT: 1022
         run: |
           make testacc
 
